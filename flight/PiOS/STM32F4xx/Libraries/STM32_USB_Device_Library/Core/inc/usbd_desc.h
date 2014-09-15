@@ -1,1 +1,0 @@
-#define USBD_ITF_MAX_NUM 2

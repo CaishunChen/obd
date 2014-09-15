@@ -127,6 +127,7 @@ int32_t GPSInitialize(void)
 	gpsPort = PIOS_COM_GPS;
 	uint8_t	gpsProtocol;
 
+	printf("GPSInitialize");
 #ifdef MODULE_GPS_BUILTIN
 	module_enabled = true;
 #else
@@ -139,6 +140,7 @@ int32_t GPSInitialize(void)
 	}
 #endif
 
+	module_enabled = true;
 #if defined(REVOLUTION)
 	// These objects MUST be initialized for Revolution
 	// because the rest of the system expects to just
@@ -222,6 +224,7 @@ static void gpsTask(void *parameters)
 		while (PIOS_COM_ReceiveBuffer(gpsPort, &c, 1, xDelay) > 0)
 		{
 			int res;
+			//PIOS_COM_SendChar(PIOS_COM_DEBUG, c);
 			switch (gpsProtocol) {
 #if defined(PIOS_INCLUDE_GPS_NMEA_PARSER)
 				case MODULESETTINGS_GPSDATAPROTOCOL_NMEA:

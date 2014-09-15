@@ -86,8 +86,16 @@ extern void InitModules(void);
 * If something goes wrong, blink LED1 and LED2 every 100ms
 *
 */
+#include "usart.h"
+
 int main()
 {
+
+//RCC_Configuration();
+//GPIO_Configuration();  
+//USART1_Configuration(); 
+//printchar('O');
+
 	int	result;
 
 	/* NOTE: Do NOT modify the following start-up sequence */
@@ -96,6 +104,10 @@ int main()
 
 	/* Brings up System using CMSIS functions, enables the LEDs. */
 	PIOS_SYS_Init();
+//RCC_Configuration();
+//GPIO_Configuration();  
+//USART1_Configuration(); 
+//printchar('P');
 
 	/* For Revolution we use a FreeRTOS task to bring up the system so we can */
 	/* always rely on FreeRTOS primitive */
@@ -117,6 +129,8 @@ int main()
 
 	return 0;
 }
+
+//extern int32_t OBDInitialize();
 /**
  * Initialisation task.
  *
@@ -125,12 +139,13 @@ int main()
 void
 initTask(void *parameters)
 {
-	/* board driver init */
+/* board driver init */
 	PIOS_Board_Init();
 
 	/* Initialize modules */
 	MODULE_INITIALISE_ALL;
 
+	//OBDInitialize();
 	/* terminate this task */
 	vTaskDelete(NULL);
 }

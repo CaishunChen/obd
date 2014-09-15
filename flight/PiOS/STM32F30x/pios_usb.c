@@ -37,13 +37,13 @@
 #include "pios_usb.h"
 #include "pios_usb_priv.h"
 
+/* USB activity detection */
+static volatile bool sof_seen_since_reset = false;
 #if defined(PIOS_INCLUDE_USB_HID)
 
 /* Rx/Tx status */
 static bool transfer_possible = false;
 
-/* USB activity detection */
-static volatile bool sof_seen_since_reset = false;
 
 enum pios_usb_dev_magic {
 	PIOS_USB_DEV_MAGIC = 0x17365904,
@@ -257,6 +257,7 @@ bool PIOS_USB_CheckAvailable(uint32_t id)
 	return PIOS_USB_CableConnected(id) && transfer_possible;
 }
 
+#endif
 void SOF_Callback(void)
 {
 	sof_seen_since_reset = true;
@@ -267,7 +268,6 @@ void SUSP_Callback(void)
 	sof_seen_since_reset = false;
 }
 
-#endif
 
 /**
  * @}

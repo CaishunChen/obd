@@ -582,6 +582,7 @@ int32_t PIOS_LSM303_Mag_Test(void)
 {
 	int32_t id = PIOS_LSM303_Mag_ReadID();
 
+	printf("Mag id = %x",(unsigned int)id);
 	if (id != 0x483433)	// "H43"
 		return -1;
 

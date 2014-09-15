@@ -162,7 +162,7 @@ uintptr_t pios_com_telem_rf_id = 0;
 uintptr_t pios_com_vcp_id = 0;
 uintptr_t pios_com_bridge_id = 0;
 uintptr_t pios_com_overo_id = 0;
-
+uintptr_t pios_com_gprs_id = 0;
 uintptr_t pios_uavo_settings_fs_id;
 
 /*
@@ -258,11 +258,15 @@ void panic(int32_t code) {
  */
 
 #include <pios_board_info.h>
+#include "usart.h"
 
 void PIOS_Board_Init(void) {
 
 	/* Delay system */
 	PIOS_DELAY_Init();
+	
+	PIOS_Board_configure_com(&pios_usart1_cfg, PIOS_COM_BRIDGE_RX_BUF_LEN, PIOS_COM_DEBUGCONSOLE_TX_BUF_LEN, &pios_usart_com_driver, &pios_com_debug_id);
+	printf("CPU@%dMhz",(int)SystemCoreClock);
 	
 	const struct pios_board_info * bdinfo = &pios_board_info_blob;
 
@@ -271,14 +275,17 @@ void PIOS_Board_Init(void) {
 	PIOS_Assert(led_cfg);
 	PIOS_LED_Init(led_cfg);
 #endif	/* PIOS_INCLUDE_LED */
+	PIOS_LED_On(0);
 
 #if defined(PIOS_INCLUDE_SPI)
 	if (PIOS_SPI_Init(&pios_spi_internal_id, &pios_spi_internal_cfg)) {
 		PIOS_DEBUG_Assert(0);
 	}
+#if 0 
 	if (PIOS_SPI_Init(&pios_spi_external_id, &pios_spi_external_cfg)) {
 		PIOS_DEBUG_Assert(0);
 	}
+#endif
 #endif
 
 #if defined(PIOS_INCLUDE_I2C)
@@ -287,14 +294,15 @@ void PIOS_Board_Init(void) {
 	}
 	if (PIOS_I2C_CheckClear(pios_i2c_internal_id) != 0)
 		panic(3);
-
+#if 0 
 	if (PIOS_I2C_Init(&pios_i2c_external_id, &pios_i2c_external_cfg)) {
 		PIOS_DEBUG_Assert(0);
 	}
 	if (PIOS_I2C_CheckClear(pios_i2c_external_id) != 0)
 		panic(4);
 #endif
-
+#endif
+//	printf("i2c init");
 #if defined(PIOS_INCLUDE_FLASH)
 	/* Connect flash to the appropriate interface and configure it */
 	uintptr_t flash_id;
@@ -438,10 +446,12 @@ void PIOS_Board_Init(void) {
 			if (PIOS_USB_CDC_Init(&pios_usb_cdc_id, &pios_usb_cdc_cfg, pios_usb_id)) {
 				PIOS_Assert(0);
 			}
+			uint8_t * rx_buffer = (uint8_t *) pvPortMalloc(PIOS_COM_BRIDGE_RX_BUF_LEN);
 			uint8_t * tx_buffer = (uint8_t *) pvPortMalloc(PIOS_COM_DEBUGCONSOLE_TX_BUF_LEN);
+			PIOS_Assert(rx_buffer);
 			PIOS_Assert(tx_buffer);
 			if (PIOS_COM_Init(&pios_com_debug_id, &pios_usb_cdc_com_driver, pios_usb_cdc_id,
-						NULL, 0,
+						rx_buffer, PIOS_COM_BRIDGE_RX_BUF_LEN,
 						tx_buffer, PIOS_COM_DEBUGCONSOLE_TX_BUF_LEN)) {
 				PIOS_Assert(0);
 			}
@@ -453,6 +463,7 @@ void PIOS_Board_Init(void) {
 	}
 #endif	/* PIOS_INCLUDE_USB_CDC */
 
+	//printf("USB init");
 #if defined(PIOS_INCLUDE_USB_HID)
 	/* Configure the usb HID port */
 	uint8_t hw_usb_hidport;
@@ -494,6 +505,7 @@ void PIOS_Board_Init(void) {
 	uint8_t hw_DSMxBind;
 	HwFlyingF3DSMxBindGet(&hw_DSMxBind);
 
+#if 0 
 	/* UART1 Port */
 	uint8_t hw_uart1;
 	HwFlyingF3Uart1Get(&hw_uart1);
@@ -557,7 +569,7 @@ void PIOS_Board_Init(void) {
 		break;
 	case HWFLYINGF3_UART1_DEBUGCONSOLE:
 #if defined(PIOS_INCLUDE_DEBUG_CONSOLE) && defined(PIOS_INCLUDE_USART) && defined(PIOS_INCLUDE_COM)
-		PIOS_Board_configure_com(&pios_usart1_cfg, 0, PIOS_COM_DEBUGCONSOLE_TX_BUF_LEN, &pios_usart_com_driver, &pios_com_debug_id);
+		PIOS_Board_configure_com(&pios_usart1_cfg, PIOS_COM_BRIDGE_RX_BUF_LEN, PIOS_COM_DEBUGCONSOLE_TX_BUF_LEN, &pios_usart_com_driver, &pios_com_debug_id);
 #endif	/* PIOS_INCLUDE_DEBUG_CONSOLE */
 		break;
 	case HWFLYINGF3_UART1_COMBRIDGE:
@@ -567,7 +579,8 @@ void PIOS_Board_Init(void) {
 		break;
 	}
 
-
+	printf("usart1 inited");
+#endif
 
 	/* UART2 Port */
 	uint8_t hw_uart2;
@@ -580,6 +593,11 @@ void PIOS_Board_Init(void) {
 		PIOS_Board_configure_com(&pios_usart2_cfg, PIOS_COM_TELEM_RF_RX_BUF_LEN, PIOS_COM_TELEM_RF_TX_BUF_LEN, &pios_usart_com_driver, &pios_com_telem_rf_id);
 #endif /* PIOS_INCLUDE_TELEMETRY_RF */
 		break;
+	case HWFLYINGF3_UART2_GPRS:
+#if defined(PIOS_INCLUDE_USART) && defined(PIOS_INCLUDE_COM)
+		PIOS_Board_configure_com(&pios_usart2_cfg, PIOS_COM_TELEM_RF_RX_BUF_LEN, PIOS_COM_TELEM_RF_TX_BUF_LEN, &pios_usart_com_driver, &pios_com_gprs_id);
+		break;
+#endif
 	case HWFLYINGF3_UART2_GPS:
 #if defined(PIOS_INCLUDE_GPS) && defined(PIOS_INCLUDE_USART) && defined(PIOS_INCLUDE_COM)
 		PIOS_Board_configure_com(&pios_usart2_cfg, PIOS_COM_GPS_RX_BUF_LEN, 0, &pios_usart_com_driver, &pios_com_gps_id);
@@ -656,7 +674,7 @@ void PIOS_Board_Init(void) {
 		break;
 	case HWFLYINGF3_UART3_GPS:
 #if defined(PIOS_INCLUDE_GPS) && defined(PIOS_INCLUDE_USART) && defined(PIOS_INCLUDE_COM)
-		PIOS_Board_configure_com(&pios_usart3_cfg, PIOS_COM_GPS_RX_BUF_LEN, 0, &pios_usart_com_driver, &pios_com_gps_id);
+		PIOS_Board_configure_com(&pios_usart3_cfg, PIOS_COM_GPS_RX_BUF_LEN, 64, &pios_usart_com_driver, &pios_com_gps_id);
 #endif
 		break;
 	case HWFLYINGF3_UART3_SBUS:
@@ -972,9 +990,15 @@ void PIOS_Board_Init(void) {
 
 #if defined(PIOS_INCLUDE_L3GD20) && defined(PIOS_INCLUDE_SPI)
 	if (PIOS_L3GD20_Init(pios_spi_internal_id, 0, &pios_l3gd20_cfg) != 0)
-		panic(1);
+	{
+		//panic(1);
+		printf("L3GD20_Init error");
+	}
 	if (PIOS_L3GD20_Test() != 0)
-		panic(1);
+	{
+		//panic(1);
+		printf("L3GD20 Test error");
+	}
 
 	// To be safe map from UAVO enum to driver enum
 	/*
@@ -1003,14 +1027,25 @@ void PIOS_Board_Init(void) {
 	PIOS_WDG_Clear();
 #endif /* PIOS_INCLUDE_L3GD20 && PIOS_INCLUDE_I2C*/
 
+	//printf("L3GD20 init");
 #if defined(PIOS_INCLUDE_LSM303) && defined(PIOS_INCLUDE_I2C)
 	if (PIOS_LSM303_Init(pios_i2c_internal_id, &pios_lsm303_cfg) != 0)
-		panic(2);
+	{
+		//panic(2);
+		printf("LSM303 init error");
+	}
 	if (PIOS_LSM303_Accel_Test() != 0)
-		panic(2);
+	{
+		//panic(2);
+		printf("LSM303 test error");
+	}
 	if (PIOS_LSM303_Mag_Test() != 0)
-		panic(2);
+	{
+		//panic(2);
+		printf("Mag test error");
+	}
 
+	//printf("LSM303 init");
 	uint8_t hw_accel_range;
 	HwFlyingF3AccelRangeGet(&hw_accel_range);
 	switch(hw_accel_range) {

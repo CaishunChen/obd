@@ -73,6 +73,7 @@ void jump_to_app();
 int main() {
 	PIOS_SYS_Init();	
 	PIOS_Board_Init();
+	jump_to_app();
 	PIOS_IAP_Init();
 
 	/* Give USB SOF a chance to fire so we can notice a cable attached */
