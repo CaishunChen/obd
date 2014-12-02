@@ -225,6 +225,7 @@ static void gpsTask(void *parameters)
 		{
 			int res;
 			//PIOS_COM_SendChar(PIOS_COM_DEBUG, c);
+			PIOS_COM_SendChar(PIOS_COM_VCP, c);
 			switch (gpsProtocol) {
 #if defined(PIOS_INCLUDE_GPS_NMEA_PARSER)
 				case MODULESETTINGS_GPSDATAPROTOCOL_NMEA:

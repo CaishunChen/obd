@@ -1,10 +1,10 @@
 
 #include "pios_can.h"
 
-#define CAN_RX_PIN GPIO_Pin_11
-#define CAN_TX_PIN GPIO_Pin_12
-//#define CAN_RX_PIN GPIO_Pin_8
-//#define CAN_TX_PIN GPIO_Pin_9
+//#define CAN_RX_PIN GPIO_Pin_11
+//#define CAN_TX_PIN GPIO_Pin_12
+#define CAN_RX_PIN GPIO_Pin_8
+#define CAN_TX_PIN GPIO_Pin_9
 
 static xQueueHandle xCAN_receive_queue0;
 static xQueueHandle xCAN_receive_queue1;
@@ -18,12 +18,12 @@ void can_init(void)
       .GPIO_Speed = GPIO_Speed_50MHz,
       .GPIO_Mode  = GPIO_Mode_AF,
     };
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_9);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource12, GPIO_AF_9);
-  //GPIO_Init(GPIOB, &GPIO_InitStructure);
-  //GPIO_PinAFConfig(GPIOB, GPIO_PinSource8, GPIO_AF_9);
-  //GPIO_PinAFConfig(GPIOB, GPIO_PinSource9, GPIO_AF_9);
+//  GPIO_Init(GPIOA, &GPIO_InitStructure);
+//  GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_9);
+//  GPIO_PinAFConfig(GPIOA, GPIO_PinSource12, GPIO_AF_9);
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource8, GPIO_AF_9);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource9, GPIO_AF_9);
 
 //  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;	// default is un-pulled input
 //  GPIO_InitStructure.GPIO_Pin = (GPIO_Pin_11 | GPIO_Pin_12);				// leave USB D+/D- alone

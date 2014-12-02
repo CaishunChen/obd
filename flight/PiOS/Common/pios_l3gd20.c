@@ -277,7 +277,6 @@ static int32_t PIOS_L3GD20_GetReg(uint8_t reg)
 
 	PIOS_SPI_TransferByte(pios_l3gd20_dev->spi_id, (0x80 | reg)); // request byte
 	data = PIOS_SPI_TransferByte(pios_l3gd20_dev->spi_id, 0);     // receive response
-
 	PIOS_L3GD20_ReleaseBus();
 
 	return data;
@@ -437,8 +436,10 @@ bool PIOS_L3GD20_IRQHandler(void)
 	// this code is used on another board add an orientation mapping to the configuration
 	struct pios_sensor_gyro_data normalized_data;
 	float scale = PIOS_L3GD20_GetScale();
-	normalized_data.y = data.gyro_x * scale;
-	normalized_data.x = data.gyro_y * scale;
+//	normalized_data.y = data.gyro_x * scale;
+//	normalized_data.x = data.gyro_y * scale;
+	normalized_data.x = -data.gyro_x * scale;
+	normalized_data.y = data.gyro_y * scale;
 	normalized_data.z = -data.gyro_z * scale;
 	normalized_data.temperature = PIOS_L3GD20_GetRegIsr(PIOS_L3GD20_OUT_TEMP, &woken);
 

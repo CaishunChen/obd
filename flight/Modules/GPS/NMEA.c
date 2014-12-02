@@ -40,7 +40,7 @@
 #include "GPS.h"
 
 //#define ENABLE_DEBUG_MSG						///< define to enable debug-messages
-#define DEBUG_PORT		PIOS_COM_TELEM_RF		///< defines which serial port is ued for debug-messages
+#define DEBUG_PORT		PIOS_COM_DEBUG		///< defines which serial port is ued for debug-messages
 
 
 
@@ -50,9 +50,9 @@
 //#define DEBUG_PARAMS			///< define to display the incoming NMEA messages split into its parameters
 //#define DEBUG_MGSID_IN		///< define to display the the names of the incoming NMEA messages
 //#define NMEA_DEBUG_PKT		///< define to enable debug of all NMEA messages
-//#define NMEA_DEBUG_GGA		///< define to enable debug of GGA messages
+#define NMEA_DEBUG_GGA		///< define to enable debug of GGA messages
 //#define NMEA_DEBUG_VTG		///< define to enable debug of VTG messages
-//#define NMEA_DEBUG_RMC		///< define to enable debug of RMC messages
+#define NMEA_DEBUG_RMC		///< define to enable debug of RMC messages
 //#define NMEA_DEBUG_GSA		///< define to enable debug of GSA messages
 //#define NMEA_DEBUG_GSV		///< define to enable debug of GSV messages
 //#define NMEA_DEBUG_ZDA		///< define to enable debug of ZDA messages
@@ -80,11 +80,11 @@ static bool nmeaProcessGPGSA(GPSPositionData * GpsData, bool* gpsDataUpdated, ch
 
 const static struct nmea_parser nmea_parsers[] = {
 	{
-		.prefix = "GPGGA",
+		.prefix = "GNGGA",
 		.handler = nmeaProcessGPGGA,
 	},
 	{
-		.prefix = "GPVTG",
+		.prefix = "GNVTG",
 		.handler = nmeaProcessGPVTG,
 	},
 	{
@@ -92,7 +92,7 @@ const static struct nmea_parser nmea_parsers[] = {
 		.handler = nmeaProcessGPGSA,
 	},
 	{
-		.prefix = "GPRMC",
+		.prefix = "GNRMC",
 		.handler = nmeaProcessGPRMC,
 	},
 #if !defined(PIOS_GPS_MINIMAL)
@@ -464,7 +464,8 @@ static bool nmeaProcessGPGGA(GPSPositionData * GpsData, bool* gpsDataUpdated, ch
 		return false;
 
 #ifdef  NMEA_DEBUG_GGA
-	DEBUG_MSG("\n UTC=%s\n", param[1]);
+	DEBUG_MSG("\n GPGGA UTC=%s\n", param[1]);
+#if 0
 	DEBUG_MSG(" Lat=%s %s\n", param[2], param[3]);
 	DEBUG_MSG(" Long=%s %s\n", param[4], param[5]);
 	DEBUG_MSG(" Fix=%s\n", param[6]);
@@ -472,6 +473,7 @@ static bool nmeaProcessGPGGA(GPSPositionData * GpsData, bool* gpsDataUpdated, ch
 	DEBUG_MSG(" HDOP=%s\n", param[8]);
 	DEBUG_MSG(" Alt=%s %s\n", param[9], param[10]);
 	DEBUG_MSG(" GeoidSep=%s %s\n\n", param[11]);
+#endif
 #endif
 
 	*gpsDataUpdated = true;
@@ -516,12 +518,14 @@ static bool nmeaProcessGPRMC(GPSPositionData * GpsData, bool* gpsDataUpdated, ch
 		return false;
 
 #ifdef NMEA_DEBUG_RMC
-	DEBUG_MSG("\n UTC=%s\n", param[1]);
+	DEBUG_MSG("\n GPRMC UTC=%s\n", param[1]);
+#if 0
 	DEBUG_MSG(" Lat=%s %s\n", param[3], param[4]);
 	DEBUG_MSG(" Long=%s %s\n", param[5], param[6]);
 	DEBUG_MSG(" Speed=%s\n", param[7]);
 	DEBUG_MSG(" Course=%s\n", param[8]);
 	DEBUG_MSG(" DateOfFix=%s\n\n", param[9]);
+#endif
 #endif
 
 	*gpsDataUpdated = false;
@@ -582,7 +586,7 @@ static bool nmeaProcessGPVTG(GPSPositionData * GpsData, bool* gpsDataUpdated, ch
 	if (nbParam != 9 && nbParam != 10 /*GTOP GPS seems to gemnerate an extra parameter...*/)
 		return false;
 
-#ifdef NMEA_DEBUG_RMC
+#if 0 //def NMEA_DEBUG_RMC
 	DEBUG_MSG("\n Heading=%s %s\n", param[1], param[2]);
 	DEBUG_MSG(" GroundSpeed=%s %s\n", param[5], param[6]);
 #endif

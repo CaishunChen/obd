@@ -53,11 +53,11 @@
 #include "pios_l3gd20.h"
 static const struct pios_exti_cfg pios_exti_l3gd20_cfg __exti_config = {
 	.vector = PIOS_L3GD20_IRQHandler,
-	.line = EXTI_Line1,
+	.line = EXTI_Line15,
 	.pin = {
-		.gpio = GPIOE,
+		.gpio = GPIOB,
 		.init = {
-			.GPIO_Pin = GPIO_Pin_1,
+			.GPIO_Pin = GPIO_Pin_15,
 			.GPIO_Speed = GPIO_Speed_50MHz,
 			.GPIO_Mode = GPIO_Mode_IN,
 			.GPIO_OType = GPIO_OType_OD,
@@ -66,7 +66,7 @@ static const struct pios_exti_cfg pios_exti_l3gd20_cfg __exti_config = {
 	},
 	.irq = {
 		.init = {
-			.NVIC_IRQChannel = EXTI1_IRQn,
+			.NVIC_IRQChannel = EXTI15_10_IRQn,
 			.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_HIGH,
 			.NVIC_IRQChannelSubPriority = 0,
 			.NVIC_IRQChannelCmd = ENABLE,
@@ -74,7 +74,7 @@ static const struct pios_exti_cfg pios_exti_l3gd20_cfg __exti_config = {
 	},
 	.exti = {
 		.init = {
-			.EXTI_Line = EXTI_Line1, // matches above GPIO pin
+			.EXTI_Line = EXTI_Line15, // matches above GPIO pin
 			.EXTI_Mode = EXTI_Mode_Interrupt,
 			.EXTI_Trigger = EXTI_Trigger_Rising,
 			.EXTI_LineCmd = ENABLE,
@@ -97,11 +97,11 @@ static const struct pios_l3gd20_cfg pios_l3gd20_cfg = {
 #include "pios_lsm303.h"
 static const struct pios_exti_cfg pios_exti_lsm303_cfg __exti_config = {
 	.vector = PIOS_LSM303_IRQHandler,
-	.line = EXTI_Line4,
+	.line = EXTI_Line13,
 	.pin = {
-		.gpio = GPIOE,
+		.gpio = GPIOB,
 		.init = {
-			.GPIO_Pin = GPIO_Pin_4,
+			.GPIO_Pin = GPIO_Pin_13,
 			.GPIO_Speed = GPIO_Speed_50MHz,
 			.GPIO_Mode = GPIO_Mode_IN,
 			.GPIO_OType = GPIO_OType_OD,
@@ -110,7 +110,7 @@ static const struct pios_exti_cfg pios_exti_lsm303_cfg __exti_config = {
 	},
 	.irq = {
 		.init = {
-			.NVIC_IRQChannel = EXTI4_IRQn,
+			.NVIC_IRQChannel = EXTI15_10_IRQn,
 			.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_MID,
 			.NVIC_IRQChannelSubPriority = 0,
 			.NVIC_IRQChannelCmd = ENABLE,
@@ -118,7 +118,7 @@ static const struct pios_exti_cfg pios_exti_lsm303_cfg __exti_config = {
 	},
 	.exti = {
 		.init = {
-			.EXTI_Line = EXTI_Line4, // matches above GPIO pin
+			.EXTI_Line = EXTI_Line13, // matches above GPIO pin
 			.EXTI_Mode = EXTI_Mode_Interrupt,
 			.EXTI_Trigger = EXTI_Trigger_Rising,
 			.EXTI_LineCmd = ENABLE,
@@ -130,6 +130,7 @@ static const struct pios_lsm303_cfg pios_lsm303_cfg = {
 	.exti_cfg = &pios_exti_lsm303_cfg,
 	.devicetype = PIOS_LSM303DLHC_DEVICE,
 	.orientation = PIOS_LSM303_TOP_180DEG,
+	//.orientation = PIOS_LSM303_TOP_0DEG,
 };
 #endif /* PIOS_INCLUDE_LSM303 */
 
