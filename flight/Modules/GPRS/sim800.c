@@ -1,9 +1,10 @@
-#include <pios.h>
+#include "openpilot.h"
 #include "sim800.h"
 
 
 #define delay PIOS_DELAY_WaitmS
-#define DEBUG_ERROR printf
+//#define DEBUG_ERROR printf
+#define DEBUG_ERROR(x); 
 
 void SIM800_powerOn(void)
 {
@@ -15,15 +16,15 @@ void SIM800_powerOff(void)
 	PIOS_LED_Off(7);
 }
 
-static int uart_getchar(int timeOut)
+static int uart_getchar(uint32_t timeOut)
 {
-	uint8_t c;
-	int res;
+	uint8_t c=0;
+	uint32_t rx_bytes;
 
-	//	DEBUG_MSG("PIOS_COM_ReceiveBuffer\r\n");
-	res = PIOS_COM_ReceiveBuffer(PIOS_COM_GPRS, &c, 1, timeOut);
-	//	DEBUG_MSG("PIOS_COM_ReceiveBuffer return %d\r\n",res);
-	if (res == 1)
+//	printf("PIOS_COM_ReceiveBuffer");
+	rx_bytes = PIOS_COM_ReceiveBuffer(PIOS_COM_GPRS, &c, 1, timeOut);
+	printf("%c ",c);
+	if (rx_bytes == 1)
 		return c;
 	else
 	{
@@ -42,19 +43,31 @@ static int uart_puts(const char *s)
 	return PIOS_COM_SendString(PIOS_COM_GPRS, s);
 }
 
-
-int SIM800_readBuffer(char *buffer,int count, unsigned int timeOut)
+void SIM800_clearOutput()
+{
+	
+	while(uart_getchar(3000) > 0);
+}
+int SIM800_readBuffer(char *buffer,int count, uint32_t timeOut)
 {
 	int i = 0;
+	int t = 0;
 	while (1) {
 		char c = uart_getchar(timeOut);
-		if( c == -1)
-			return -1;
+		if( c == 255)
+		{
+			printf("t ");
+			t++;
+			if(t+i >= count)
+				return i;
+			else
+				continue;
+		}
 		if (c == '\r' || c == '\n') c = '$';
 		buffer[i++] = c;
 		if(i > count-1)break;
 	}
-	return 0;
+	return i;
 }
 
 void SIM800_cleanBuffer(char *buffer, int count)
@@ -66,23 +79,38 @@ void SIM800_cleanBuffer(char *buffer, int count)
 
 void SIM800_sendCmd(const char* cmd)
 {
-	uart_puts(cmd);
+#if 0
+	int i;
+	int len = strlen(cmd);
+	for(i=0; i<len; i++)
+		PIOS_COM_SendChar(PIOS_COM_GPRS, cmd[i]);
+#else
+	PIOS_COM_SendString(PIOS_COM_GPRS,cmd);
+#endif
 }
 
-void SIM800_sendATTest(void)
+int SIM800_sendATTest(void)
 {
-	SIM800_sendCmdAndWaitForResp("AT\r\n","OK",DEFAULT_TIMEOUT);
+	return SIM800_sendCmdAndWaitForResp("AT\r\n","OK",DEFAULT_TIMEOUT);
 }
 
-int SIM800_waitForResp(const char *resp, unsigned int timeout)
+int SIM800_waitForResp(const char *resp, uint32_t timeout)
 {
 	int len = strlen(resp);
 	int sum=0;
-
+	int t = 0;
 	while(1) {
 		char c = uart_getchar(timeout);
-		if(c == -1)
-			return -1;
+		if(c == 255)
+		{
+			printf("t ");
+			t++;
+			if(t > len)
+				return -1;
+			else
+				continue;
+		}
+		PIOS_COM_SendChar(PIOS_COM_DEBUG, c);
 		sum = (c==resp[sum]) ? sum+1 : 0;
 		if(sum == len)break;
 	}
@@ -95,7 +123,7 @@ void SIM800_sendEndMark(void)
 }
 
 
-int SIM800_sendCmdAndWaitForResp(const char* cmd, const char *resp, unsigned timeout)
+int SIM800_sendCmdAndWaitForResp(const char* cmd, const char *resp, uint32_t timeout)
 {
 	SIM800_sendCmd(cmd);
 	return SIM800_waitForResp(resp,timeout);
@@ -137,16 +165,18 @@ int SIM800_checkSIMStatus(void)
 
 int SIM800_networkCheck(void)
 {
-	delay(1000);
+//	delay(1000);
 	if(0 != SIM800_sendCmdAndWaitForResp("AT+CGREG?\r\n","+CGREG: 0,1",DEFAULT_TIMEOUT*3)) { 
 		DEBUG_ERROR("ERROR:CGREG");
 		return -1;
 	}
-	delay(1000);
+	SIM800_clearOutput();
+//	delay(1000);
 	if(0 != SIM800_sendCmdAndWaitForResp("AT+CGATT?\r\n","+CGATT: 1",DEFAULT_TIMEOUT)) {
 		DEBUG_ERROR("ERROR:CGATT");
 		return -1;
 	}
+	SIM800_clearOutput();
 	return 0;
 }
 
@@ -196,6 +226,33 @@ int SIM800_readSMS(int messageIndex, char *message,int length)
 	return 0;
 }
 
+int SIM800_readIMEI(char *imei, int len)
+{
+	char gprsBuffer[32];
+	char *p;
+	int i = 0;
+	SIM800_sendCmd("at+gsn\r\n");
+	SIM800_cleanBuffer(gprsBuffer,32);
+	SIM800_readBuffer(gprsBuffer,32,DEFAULT_TIMEOUT);
+	printf("xxx imei:%s",gprsBuffer);
+	if(strstr(gprsBuffer,"OK"))
+	{
+		printf("123 ");
+		p = gprsBuffer;
+		while(i < (len-1))
+		{
+			if(*p != '$')
+				imei[i++] = *p;
+			p++;
+		}
+		imei[i] = '\0';
+		printf(" %d",i);
+		return i;
+	}else
+		printf("xxx");
+	return 0;
+}
+
 int SIM800_deleteSMS(int index)
 {
 	char cmd[16];
@@ -227,7 +284,7 @@ int SIM800_connectTCP(const char *ip, int port)
 {
 	char cipstart[50];
 	sprintf(cipstart, "AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n", ip, port);
-	if(0 != SIM800_sendCmdAndWaitForResp(cipstart, "CONNECT OK", 10)) {// connect tcp
+	if(0 != SIM800_sendCmdAndWaitForResp(cipstart, "CONNECT OK", DEFAULT_TIMEOUT)) {// connect tcp
 		DEBUG_ERROR("ERROR:CIPSTART");
 		return -1;
 	}
@@ -239,11 +296,11 @@ int SIM800_sendTCPData(char *data)
 	char cmd[32];
 	int len = strlen(data);
 	snprintf(cmd,sizeof(cmd),"AT+CIPSEND=%d\r\n",len);
-	if(0 != SIM800_sendCmdAndWaitForResp(cmd,">",2*DEFAULT_TIMEOUT)) {
+	if(0 != SIM800_sendCmdAndWaitForResp(cmd,">",5*DEFAULT_TIMEOUT)) {
 		DEBUG_ERROR("ERROR:CIPSEND");
 		return -1;
 	}
-	if(0 != SIM800_sendCmdAndWaitForResp(data,"SEND OK",2*DEFAULT_TIMEOUT)) {
+	if(0 != SIM800_sendCmdAndWaitForResp(data,"SEND OK",DEFAULT_TIMEOUT)) {
 		DEBUG_ERROR("ERROR:SendTCPData");
 		return -1;
 	}

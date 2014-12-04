@@ -15,6 +15,6 @@ void can_set_baud(int kbps);
 void can_set_filters(can_t* can_filters);
 void can_send_msg(uint8_t data[8], uint32_t TxID, int len);
 portBASE_TYPE can_receive_msgFIFO0(CanRxMsg* RxMessage);
-portBASE_TYPE can_receive_msgFIFO1(CanRxMsg* RxMessage);
+portBASE_TYPE can_receive_msgFIFO1(CanRxMsg* RxMessage, int timeout);
 
 #endif

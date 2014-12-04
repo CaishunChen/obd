@@ -12,6 +12,7 @@
         <field name="PDOP" units="" type="float" elements="1"/>
         <field name="HDOP" units="" type="float" elements="1"/>
         <field name="VDOP" units="" type="float" elements="1"/>
+        <field name="gprmc" units="" type="uint8" elements="100"/>
         <access gcs="readwrite" flight="readwrite"/>
         <telemetrygcs acked="false" updatemode="manual" period="0"/>
         <telemetryflight acked="false" updatemode="periodic" period="2000"/>

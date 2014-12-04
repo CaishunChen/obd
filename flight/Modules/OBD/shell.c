@@ -1,5 +1,6 @@
 #include "openpilot.h"
 #include "pios_can.h"
+#include "obd.h"
 
 #define DEBUG_MSG(format, ...) PIOS_COM_SendFormattedString(PIOS_COM_DEBUG, format, ## __VA_ARGS__)
 
@@ -21,8 +22,11 @@ static struct {
 	unsigned int index;
 	unsigned int match;
 } shell;
-
+int g_debug_level = 1;
 int show_can_id = 0;
+extern int stop_obdTask;
+extern int manual_upload;
+
 /* built-in shell commands */
 static void shell_help(int argc, char **argv);
 static void at(int argc, char **argv);
@@ -40,7 +44,7 @@ int uart_getchar(void)
 
 //	DEBUG_MSG("PIOS_COM_ReceiveBuffer\r\n");
 	res = PIOS_COM_ReceiveBuffer(PIOS_COM_DEBUG, &c, 1, -1);
-//	DEBUG_MSG("PIOS_COM_ReceiveBuffer return %d\r\n",res);
+//	DEBUG_MSG("PIOS_COM_ReceiveBuffer return %d",res);
 	if (res == 1)
 		return c;
 	else
@@ -71,10 +75,10 @@ static char is_whitespace(char c)
 	return (c == ' ' || c == '\t' || c == '\r' || c == '\n');
 }
 
-static unsigned int hex2bin( const char *s )
+static unsigned int hex2bin( const char *s, int len )
 {
     unsigned int ret=0;
-    int n = strlen(s);
+    int n = len;
     int i;
     for( i=0; (i<n) && (i<8); i++ )
     {
@@ -109,7 +113,7 @@ static void do_command(int argc, char **argv)
 	memset(cmd,0,sizeof(cmd)); 
 	for (i = 0; i < argc; i++)
 	{
-		d = hex2bin(argv[i]);
+		d = hex2bin(argv[i],strlen(argv[i]));
 		if(d != -1)
 		{
 			cmd[i+1] = d;	
@@ -270,7 +274,8 @@ static void shell_task(void *params)
 		if (c != -1) {
 			handle_input((char)c);
 			PIOS_COM_SendChar(PIOS_COM_GPRS, c);
-			PIOS_COM_SendChar(PIOS_COM_GPS, c);
+			//printf("%d ",c);
+			//PIOS_COM_SendChar(PIOS_COM_GPS, c);
 		}
 //		vTaskDelay(1000);
 		
@@ -296,7 +301,7 @@ static void shell_help(int argc, char **argv)
 		uart_putchar('\n');
 	}
 }
-char *can_protos[] = {
+static char *can_protos[] = {
 	"6 - ISO 15765-4 CAN (11 bit ID, 500 Kbaud)\r\n",	
 	"7 - ISO 15765-4 CAN (29 bit ID, 500 Kbaud)\r\n",	
 	"8 - ISO 15765-4 CAN (11 bit ID, 250 Kbaud)\r\n",	
@@ -305,6 +310,12 @@ char *can_protos[] = {
 	"11 - SAE J1939 (29 bit ID, 250 Kbaud)\r\n",	
 };
 static int can_cur_proto = 8;
+
+char *get_cur_proto()
+{
+	return can_protos[can_cur_proto-6];
+}
+
 static void at_sp_help()
 {
 	DEBUG_MSG("set the can protocol to one of:\r\n");
@@ -376,7 +387,7 @@ static void at(int argc, char **argv)
 				DEBUG_MSG("at cf %03x\r\n", CAN_filterInit[0].CAN_FilterIdHigh>>5);
 			return;
 		}
-		unsigned int id = hex2bin(argv[2]);
+		unsigned int id = hex2bin(argv[2],strlen(argv[2]));
 		if(IS_CAN_STDID(id))
 		{
 			CAN_filterInit[0].CAN_FilterIdHigh = id<<5;
@@ -401,7 +412,7 @@ static void at(int argc, char **argv)
 			}
 			return;
 		}
-		unsigned int id = hex2bin(argv[2]);
+		unsigned int id = hex2bin(argv[2],strlen(argv[2]));
 		if(CAN_filterInit[0].CAN_FilterIdLow & CAN_Id_Extended)
 		{
 			id <<= 3;
@@ -414,16 +425,26 @@ static void at(int argc, char **argv)
 		can_set_filters(&can_filters);
 	}else if(!strcmp(argv[1],"show"))
 	{
-		show_can_id = hex2bin(argv[2]);	
+		show_can_id = hex2bin(argv[2],strlen(argv[2]));	
 		DEBUG_MSG("show %x\r\n", show_can_id);
-	}else if(!strcmp(argv[1],"send"))
+	}else if(!strcmp(argv[1], "debug"))
+	{
+		g_debug_level = hex2bin(argv[2],strlen(argv[2]));
+	}else if(!strcmp(argv[1], "obd"))
+	{
+		stop_obdTask = hex2bin(argv[2],strlen(argv[2]));
+	}else if(!strcmp(argv[1], "upload"))
+	{
+		manual_upload = hex2bin(argv[2],strlen(argv[2]));
+	}
+	else if(!strcmp(argv[1],"send"))
 	{
 		unsigned char cmd[16];
 		unsigned int cmd_len = 0;
 		unsigned int can_id = 0;
 		int d,i;
 			
-		can_id = hex2bin(argv[2]);
+		can_id = hex2bin(argv[2],strlen(argv[2]));
 		if(can_id == -1)
 		{
 			DEBUG_MSG("invalid can id\r\n");
@@ -432,7 +453,7 @@ static void at(int argc, char **argv)
 		memset(cmd,0,sizeof(cmd)); 
 		for (i = 3; i < argc; i++)
 		{
-			d = hex2bin(argv[i]);
+			d = hex2bin(argv[i],strlen(argv[i]));
 			if(d != -1)
 			{
 				cmd[i-3] = d;	
@@ -459,4 +480,73 @@ static void obd(unsigned char *cmd, int len)
 	else
 		uart_puts("?\r\n");
 }
+
+int obd2(char *str, int len, char *res)
+{
+	unsigned char cmd[8];
+	int i;
+	int ret;
+	char *res_org = res;
+	CanRxMsg RxMessage;
+
+
+	memset(cmd,0,sizeof(cmd));
+	if(stop_obdTask != 2)
+		return 0;
+
+	len = len >> 1;
+	cmd[0] = len;
+
+	for(i=0; i<len; i++)
+	{
+		cmd[i+1] = hex2bin(str,2);
+		str += 2;
+	}
+	printf("obd2: ");
+	for(i=0; i<8; i++)
+		printf("%02x ",cmd[i]);
+	printf("\r\n ");
+	if(can_cur_proto == 6 || can_cur_proto == 8)
+		can_send_msg(cmd,0x7df,8);
+	else if(can_cur_proto == 7 || can_cur_proto == 9)
+		can_send_msg(cmd,0x18db33f1,8);
+	else if(can_cur_proto == 10)
+		can_send_msg(cmd,0x18eafff9,8);
+
+reget:
+	ret = can_receive_msgFIFO1(&RxMessage, 1000);
+	if(ret > 0)
+	{
+		if(CAN_Id_Standard == RxMessage.IDE)
+		{
+			if((RxMessage.StdId >= 0x7e8) && (RxMessage.StdId <= 0x7ef))
+			{
+				if(RxMessage.Data[0] == 4 && RxMessage.Data[1] == 0x41 && RxMessage.Data[2] == 0x0c)//Engine RPM
+				{
+					uint32_t engineRPM = (RxMessage.Data[3]*256+RxMessage.Data[4])/4;
+					OBDengineRPMSet( &engineRPM );
+					//printf("engineRPM: %d\n", engineRPM);
+				}else if(RxMessage.Data[0] == 3 && RxMessage.Data[1] == 0x41 && RxMessage.Data[2] == 0x0d)//Vehicle speed
+				{
+					uint32_t vechicleSpeed = RxMessage.Data[3];
+					OBDvehicleSpeedSet( &vechicleSpeed);
+					//printf("vechicleSpeed: %d\n",vechicleSpeed);
+				}
+				if(RxMessage.Data[2] != cmd[2])
+					goto reget;
+				for(i=0; i<RxMessage.Data[0]; i++)
+				{
+					sprintf(res,"%02X", RxMessage.Data[i+1]);
+					res += 2;
+				}
+				printf("%s\r\n",res_org);
+				return i*2;
+			}
+		}
+
+	}
+	
+	return 0;
+}
+
 

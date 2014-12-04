@@ -173,9 +173,9 @@ portBASE_TYPE can_receive_msgFIFO0(CanRxMsg* RxMessage)
   return xQueueReceive(xCAN_receive_queue0, RxMessage, portMAX_DELAY);
 }
 
-portBASE_TYPE can_receive_msgFIFO1(CanRxMsg* RxMessage)
+portBASE_TYPE can_receive_msgFIFO1(CanRxMsg* RxMessage, int timeout)
 {
-  return xQueueReceive(xCAN_receive_queue1, RxMessage, portMAX_DELAY);
+  return xQueueReceive(xCAN_receive_queue1, RxMessage, timeout);
 }
 
 

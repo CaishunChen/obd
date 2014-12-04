@@ -377,6 +377,11 @@ bool NMEA_update_position(char *nmea_sentence, GPSPositionData *GpsData)
 	DEBUG_MSG("\"%s\"\n", nmea_sentence);
 #endif
 
+	if(strstr(nmea_sentence,"GNRMC"))
+	{
+		strcpy((char *)GpsData->gprmc,nmea_sentence);
+		GpsData->gprmc[1] = 'P';
+	}
 	// Split the nmea sentence it its parameters, separated by ","
 	// Sample NMEA message: "GPRMC,000131.736,V,,,,,0.00,0.00,060180,,,N*43"
 

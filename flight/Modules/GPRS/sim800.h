@@ -24,7 +24,7 @@
 #define DEBUG(x)
 #endif
 
-#define DEFAULT_TIMEOUT     5
+#define DEFAULT_TIMEOUT     2000
 
 void SIM800_preInit(void);
 
@@ -36,7 +36,7 @@ void SIM800_preInit(void);
  *      0 on success
  *      -1 on error
  */
-int SIM800_readBuffer(char* buffer,int count, unsigned int timeOut);
+int SIM800_readBuffer(char* buffer,int count, uint32_t timeOut);
 
 
 /** clean Buffer
@@ -52,7 +52,7 @@ void SIM800_sendCmd(const char* cmd);
 
 /**send "AT" to SIM800 module
  */
-void SIM800_sendATTest(void);
+int SIM800_sendATTest(void);
 
 /**send '0x1A' to SIM800 Module
  */
@@ -65,7 +65,8 @@ void SIM800_sendEndMark(void);
  *      0 on success
  *      -1 on error
  */ 
-int SIM800_waitForResp(const char* resp, unsigned timeout);
+void SIM800_clearOutput();
+int SIM800_waitForResp(const char* resp, uint32_t timeout);
 
 /** send AT command to GPRS module and wait for correct response
  *  @param  *cmd    AT command which will be send to GPRS module
@@ -75,7 +76,7 @@ int SIM800_waitForResp(const char* resp, unsigned timeout);
  *      0 on success
  *      -1 on error
  */
-int SIM800_sendCmdAndWaitForResp(const char* cmd, const char *resp, unsigned timeout);
+int SIM800_sendCmdAndWaitForResp(const char* cmd, const char *resp, uint32_t timeout);
 
 int SIM800_checkSIMStatus(void);
 
@@ -104,6 +105,7 @@ int SIM800_sendSMS(char* number, char* data);
  *      -1 on error
  */
 int SIM800_readSMS(int messageIndex, char *message, int length);
+int SIM800_readIMEI(char *imei, int len);
 
 /** delete SMS message on SIM card
  *  @param  index   the index number which SMS message will be delete
