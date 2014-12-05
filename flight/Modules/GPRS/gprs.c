@@ -75,6 +75,7 @@ static BLUETOOTH_STATE bluetooth_state = BLUETOOTH_ZERO;
 static int at_ready = 0;
 static int gps_status = 0;
 static int sending_timeout = 0;
+static int bt_sending_timeout = 0;
 static char imei[16];
 
 typedef enum {
@@ -214,7 +215,7 @@ static void GPRSTask(void *parameters)
 					}
 				}else if(strstr(line,"CLOSE OK"))
 				{
-					network_state = NETWORK_CLOSED;
+					//network_state = NETWORK_CLOSED;
 				}else if(strstr(line,"SHUT OK"))
 				{
 					network_state = NETWORK_ATTACHED;
@@ -274,7 +275,11 @@ static void GPRSTask(void *parameters)
 				printf("network_state: %x\r\n",network_state);
 			}
 			if(bluetooth_state & BLUETOOTH_SPP_SENDING)
+			{
+				if(xTaskGetTickCount() - bt_sending_timeout >= 10000)
+					bluetooth_state = 0;
 				continue;
+			}
 			if(bluetooth_state == BLUETOOTH_PAIRING)
 			{
 				if(network_state != NETWORK_SENDING && network_state != NETWORK_ID_SENDING)
@@ -283,6 +288,7 @@ static void GPRSTask(void *parameters)
 					PIOS_DELAY_WaitmS(1000);
 					SIM800_sendCmd("AT+BTSTATUS?\r\n");
 					bluetooth_state = BLUETOOTH_SPP_SENDING;	
+					bt_sending_timeout = xTaskGetTickCount();
 					continue;
 				}
 			}
@@ -294,6 +300,7 @@ static void GPRSTask(void *parameters)
 					PIOS_DELAY_WaitmS(1000);
 					SIM800_sendCmd("AT+BTSTATUS?\r\n");
 					bluetooth_state = BLUETOOTH_SPP_SENDING;	
+					bt_sending_timeout = xTaskGetTickCount();
 					continue;
 				}
 			}
@@ -344,6 +351,7 @@ static void GPRSTask(void *parameters)
 						SIM800_sendCmd(cmd);
 						bluetooth_state = BLUETOOTH_SPP_SENDING;
 					}
+					bt_sending_timeout = xTaskGetTickCount();
 					continue;
 				}
 			}
@@ -374,6 +382,7 @@ static void GPRSTask(void *parameters)
 				printf("connect to server");
 				SIM800_sendCmd(cipstart);
 				network_state = NETWORK_CONNECTING;
+				sending_timeout = xTaskGetTickCount();
 			}
 			if(network_state == NETWORK_CONNECTED)
 			{
@@ -437,16 +446,12 @@ static void GPRSTask(void *parameters)
 			if(network_state == NETWORK_ERROR)
 			{
 				SIM800_sendCmd("AT+CIPCLOSE\r\n");
-				network_state = NETWORK_WAIT_SHUT;
-				sending_timeout = xTaskGetTickCount();
-			}
-			if(network_state == NETWORK_CLOSED)
-			{
+				PIOS_DELAY_WaitmS(1000);
 				SIM800_sendCmd("AT+CIPSHUT\r\n");
 				network_state = NETWORK_WAIT_SHUT;
 				sending_timeout = xTaskGetTickCount();
 			}
-			if(network_state == NETWORK_SENDING || network_state == NETWORK_WAIT_SHUT)
+			if(network_state == NETWORK_SENDING || network_state == NETWORK_WAIT_SHUT || network_state == NETWORK_CONNECTING)
 			{
 				int tick = xTaskGetTickCount();
 				if(tick - sending_timeout > 10000)

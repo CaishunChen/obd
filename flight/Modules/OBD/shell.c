@@ -491,8 +491,6 @@ int obd2(char *str, int len, char *res)
 
 
 	memset(cmd,0,sizeof(cmd));
-	if(stop_obdTask != 2)
-		return 0;
 
 	len = len >> 1;
 	cmd[0] = len;

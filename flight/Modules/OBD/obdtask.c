@@ -70,20 +70,26 @@ int32_t obdInit()
  * Module thread, should not return.
  */
 int stop_obdTask = 0;
+extern int g_debug_level;
 static void obdTask(void *parameters)
 {
 
 	// Main task loop
 	while (1) {
 		int ret;
-		if(stop_obdTask > 0)
+	
+		if(g_debug_level > 2)
+			printf("stop_obdTask=%d\r\n",stop_obdTask);
+		if(stop_obdTask == 1)
 		{
 			PIOS_DELAY_WaitmS(1000);
-			stop_obdTask = 2;
+//			stop_obdTask = 2;
 		}else
 		{
 			CanRxMsg RxMessage;
 			ret = can_receive_msgFIFO1(&RxMessage, 1000);
+			if(g_debug_level > 2)
+				printf("can_recv: %d\r\n",ret);
 			if(ret > 0)
 			{
 				if(CAN_Id_Standard == RxMessage.IDE)
@@ -91,7 +97,8 @@ static void obdTask(void *parameters)
 					if(show_can_id == 0)
 					{
 						auto_ids[RxMessage.StdId] = 1;
-						//		DEBUG_MSG("%x: ",RxMessage.StdId);
+						if(g_debug_level > 0)
+							DEBUG_MSG("%x: ",RxMessage.StdId);
 					}
 					if(show_can_id == 0x800)
 					{
