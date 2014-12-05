@@ -233,7 +233,7 @@ static void GPRSTask(void *parameters)
 						at_ready = 2;
 					}
 				}
-				else if(strstr(line,"AT"))
+				else if(strstr(line,"AT+"))
 				{
 					if(at_ready == 3)
 					{
@@ -312,7 +312,7 @@ static void GPRSTask(void *parameters)
 					else if(strstr(spp_cmd,"ATRV"))
 					{
 						char cmd[32];
-						sprintf(spp_upload,"12.0V\r\n>");
+						sprintf(spp_upload,"12V\r\n>");
 						sprintf(cmd,"AT+BTSPPSEND=%d\r\n",strlen(spp_upload));
 						SIM800_sendCmd(cmd);
 						bluetooth_state = BLUETOOTH_SPP_SENDING;
