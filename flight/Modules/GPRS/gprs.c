@@ -20,6 +20,8 @@ typedef enum {
 	NETWORK_SENDING,
 	NETWORK_SENT_OK,
 	NETWORK_CLOSED,
+	NETWORK_WAIT_SHUT,
+	NETWORK_WAITING,
 	NETWORK_ERROR = -1,
 }NETWORK_STATE;
 
@@ -52,6 +54,9 @@ extern int stop_obdTask;
 extern int obd2(char *str, int len, char *res);
 
 int manual_upload = 0; //0 auto, 1 stop 2 start
+int upload_intervala = 1000;
+
+int upload_bytes = 0;
 
 static GPSPositionData gpsPosition;
 static GyrosData gyrosData;
@@ -77,6 +82,9 @@ typedef enum {
 	AT_GSN,
 }AT_CMD;
 static AT_CMD cmd_is = AT_0;
+static int received_n = 1;
+static int received_bytes = 0;
+
 static void GPRSTask(void *parameters)
 {
 	PIOS_LED_On(7); //power on gprs
@@ -92,10 +100,16 @@ static void GPRSTask(void *parameters)
 		//memset(gprsBuffer,0,sizeof(gprsBuffer));
 		c = 0;
 		rx_bytes = PIOS_COM_ReceiveBuffer(PIOS_COM_GPRS, &c, 1, 1000);
+		if(g_debug_level >= 2)
+			printf("r:%d %x\r\n",(int)rx_bytes,c);
 		if (rx_bytes > 0) {
+			received_bytes++;
+			received_n = 0;
 			line[line_index++] = c;
 			if(c == '\n')
 			{
+				received_n = 1;
+
 				line[line_index++] = 0; line_index = 0;	
 				printf("%s",line);
 				if(strstr(line,"BTPAIRING"))
@@ -152,14 +166,28 @@ static void GPRSTask(void *parameters)
 						bluetooth_state |= BLUETOOTH_SPP_RECEIVED;
 					}
 					printf("%d:%s",len,s);
-				}else if(strstr(line,"+CREG: 0,1"))
+				}else if(strstr(line,"+CREG:"))
 				{
-					printf("creg ok");
-					network_state = NETWORK_REG;
-				}else if(strstr(line,"+CGATT: 1"))
+					if(strstr(line,"+CREG: 0,1"))
+					{
+						printf("creg ok");
+						network_state = NETWORK_REG;
+					}else
+					{
+						PIOS_DELAY_WaitmS(1000);
+						SIM800_sendCmd("AT+CREG?\r\n");
+					}
+				}else if(strstr(line,"+CGATT:"))
 				{
-					printf("cgatt ok");
-					network_state = NETWORK_ATTACHED;
+					if(strstr(line,"+CGATT: 1"))
+					{
+						printf("cgatt ok");
+						network_state = NETWORK_ATTACHED;
+					}else
+					{
+						PIOS_DELAY_WaitmS(1000);
+						SIM800_sendCmd("AT+CGATT?\r\n");
+					}
 				}else if(strstr(line,"Call Ready"))
 				{
 					printf("call ready");
@@ -237,13 +265,15 @@ static void GPRSTask(void *parameters)
 					SIM800_sendCmd(spp_upload);
 				}
 			}	
-		}else{
+		}
+		if(received_n || received_bytes < 10/*work around for the unknown bytes from bootup*/)
+		{
 			if(g_debug_level > 0)
 			{
 				printf("bluetooth_state: %x\r\n",bluetooth_state);
 				printf("network_state: %x\r\n",network_state);
 			}
-			if(bluetooth_state == BLUETOOTH_SPP_SENDING)
+			if(bluetooth_state & BLUETOOTH_SPP_SENDING)
 				continue;
 			if(bluetooth_state == BLUETOOTH_PAIRING)
 			{
@@ -253,6 +283,7 @@ static void GPRSTask(void *parameters)
 					PIOS_DELAY_WaitmS(1000);
 					SIM800_sendCmd("AT+BTSTATUS?\r\n");
 					bluetooth_state = BLUETOOTH_SPP_SENDING;	
+					continue;
 				}
 			}
 			if(bluetooth_state == BLUETOOTH_CONNECTING)
@@ -263,6 +294,7 @@ static void GPRSTask(void *parameters)
 					PIOS_DELAY_WaitmS(1000);
 					SIM800_sendCmd("AT+BTSTATUS?\r\n");
 					bluetooth_state = BLUETOOTH_SPP_SENDING;	
+					continue;
 				}
 			}
 			if((bluetooth_state  & BLUETOOTH_SPP_RECEIVED) && (!(bluetooth_state & BLUETOOTH_SPP_SENDING)) )
@@ -324,14 +356,16 @@ static void GPRSTask(void *parameters)
 			if(network_state == NETWORK_ZERO && at_ready == 3)
 			{
 				printf("at+creg");
-				SIM800_sendCmd("AT+CREG?\r");
-				PIOS_DELAY_WaitmS(1000);
+				SIM800_sendCmd("AT+CREG?\r\n");
+				//PIOS_DELAY_WaitmS(1000);
+				network_state = NETWORK_WAITING;
 			}
 			if(network_state == NETWORK_REG)
 			{
 				printf("send at+cgatt");
-				SIM800_sendCmd("AT+CGATT?\r");	
-				PIOS_DELAY_WaitmS(1000);
+				SIM800_sendCmd("AT+CGATT?\r\n");	
+				//PIOS_DELAY_WaitmS(1000);
+				network_state = NETWORK_WAITING;
 			}
 			if(network_state == NETWORK_ATTACHED)
 			{
@@ -367,56 +401,64 @@ static void GPRSTask(void *parameters)
 			}
 			if(network_state == NETWORK_SENT_OK)
 			{
-				GyrosGet(&gyrosData);
-				AccelsGet(&accelsData);
-				MagnetometerGet(&magData);
-				AttitudeActualGet(&attitudeData);
-				OBDGet(&obdData);
-				sprintf(upload,"$%s,g,%f,%f,%f,a,%f,%f,%f,m,%f,%f,%f,at,%f,%f,%f,o,%d,%d\r\n",
-						gpsPosition.gprmc,
-						gyrosData.x,gyrosData.y,gyrosData.z,
-						accelsData.x,accelsData.y,accelsData.z,
-						magData.x,magData.y,magData.z,
-						attitudeData.Roll,attitudeData.Pitch,attitudeData.Yaw,
-						(int)obdData.vehicleSpeed,
-						(int)obdData.engineRPM
-				       );
-				if(g_debug_level > 0)
-					printf("%s",upload);
-				int gpsSpeed = (int)gpsPosition.Groundspeed;
-				int vehicleSpeed = (int)(int)obdData.vehicleSpeed;
-				int update = (vehicleSpeed+gpsSpeed+obdData.engineRPM) > 0;
-				if((update && (manual_upload == 0)) || (manual_upload == 2))//vehicleSpeed > (int)0)
+				if(xTaskGetTickCount() - sending_timeout >= upload_intervala)
 				{
-					char cmd[32];	
-					int len = strlen(upload);
-					snprintf(cmd,sizeof(cmd),"AT+CIPSEND=%d\r\n",len);
-					SIM800_sendCmd(cmd);
-					network_state = NETWORK_SENDING;
+					GyrosGet(&gyrosData);
+					AccelsGet(&accelsData);
+					MagnetometerGet(&magData);
+					AttitudeActualGet(&attitudeData);
+					OBDGet(&obdData);
+					sprintf(upload,"$%s,g,%f,%f,%f,a,%f,%f,%f,m,%f,%f,%f,at,%f,%f,%f,o,%d,%d\r\n",
+							gpsPosition.gprmc,
+							gyrosData.x,gyrosData.y,gyrosData.z,
+							accelsData.x,accelsData.y,accelsData.z,
+							magData.x,magData.y,magData.z,
+							attitudeData.Roll,attitudeData.Pitch,attitudeData.Yaw,
+							(int)obdData.vehicleSpeed,
+							(int)obdData.engineRPM
+					       );
+					if(g_debug_level > 0)
+						printf("%s",upload);
+					int gpsSpeed = (int)gpsPosition.Groundspeed;
+					int vehicleSpeed = (int)(int)obdData.vehicleSpeed;
+					int update = (vehicleSpeed+gpsSpeed+obdData.engineRPM) > 0;
+					if((update && (manual_upload == 0)) || (manual_upload == 2))//vehicleSpeed > (int)0)
+					{
+						char cmd[32];	
+						int len = strlen(upload);
+						snprintf(cmd,sizeof(cmd),"AT+CIPSEND=%d\r\n",len);
+						SIM800_sendCmd(cmd);
+						network_state = NETWORK_SENDING;
+						upload_bytes+=len;
+					}
 					sending_timeout = xTaskGetTickCount();
 				}
 			}
 			if(network_state == NETWORK_ERROR)
 			{
 				SIM800_sendCmd("AT+CIPCLOSE\r\n");
-				network_state = NETWORK_SENDING;
+				network_state = NETWORK_WAIT_SHUT;
 				sending_timeout = xTaskGetTickCount();
 			}
 			if(network_state == NETWORK_CLOSED)
 			{
 				SIM800_sendCmd("AT+CIPSHUT\r\n");
-				network_state = NETWORK_SENDING;
+				network_state = NETWORK_WAIT_SHUT;
 				sending_timeout = xTaskGetTickCount();
 			}
-			if(network_state == NETWORK_SENDING)
+			if(network_state == NETWORK_SENDING || network_state == NETWORK_WAIT_SHUT)
 			{
 				int tick = xTaskGetTickCount();
 				if(tick - sending_timeout > 10000)
 				{
 					sending_timeout = xTaskGetTickCount();
-					network_state = NETWORK_ERROR;	
+					if(network_state == NETWORK_WAIT_SHUT)
+						network_state = NETWORK_ATTACHED;
+					else
+						network_state = NETWORK_ERROR;	
 				}
 			}
+
 			if(gpsPosition.Status > 1)
 			{
 				if(gps_status <= 1)

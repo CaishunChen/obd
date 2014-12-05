@@ -502,10 +502,13 @@ int obd2(char *str, int len, char *res)
 		cmd[i+1] = hex2bin(str,2);
 		str += 2;
 	}
-	printf("obd2: ");
-	for(i=0; i<8; i++)
-		printf("%02x ",cmd[i]);
-	printf("\r\n ");
+	if(g_debug_level > 1)
+	{
+		printf("obd2: ");
+		for(i=0; i<8; i++)
+			printf("%02x ",cmd[i]);
+		printf("\r\n ");
+	}
 	if(can_cur_proto == 6 || can_cur_proto == 8)
 		can_send_msg(cmd,0x7df,8);
 	else if(can_cur_proto == 7 || can_cur_proto == 9)
@@ -539,13 +542,14 @@ reget:
 					sprintf(res,"%02X", RxMessage.Data[i+1]);
 					res += 2;
 				}
-				printf("%s\r\n",res_org);
+				if(g_debug_level > 0)
+					printf("%s\r\n",res_org);
 				return i*2;
 			}
 		}
 
 	}
-	
+
 	return 0;
 }
 
