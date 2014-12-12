@@ -60,9 +60,9 @@ static const struct pios_led pios_leds[] = {
 	},
 	[PIOS_LED_ORANGE_NE] = {
 		.pin = {
-			.gpio = GPIOE,
+			.gpio = GPIOB,
 			.init = {
-				.GPIO_Pin   = GPIO_Pin_10,
+				.GPIO_Pin   = GPIO_Pin_5,
 				.GPIO_Speed = GPIO_Speed_50MHz,
 				.GPIO_Mode  = GPIO_Mode_OUT,
 				.GPIO_OType = GPIO_OType_PP,
@@ -73,9 +73,9 @@ static const struct pios_led pios_leds[] = {
 	},
 	[PIOS_LED_GREEN_E] = {
 		.pin = {
-			.gpio = GPIOB,
+			.gpio = GPIOC,
 			.init = {
-				.GPIO_Pin   = GPIO_Pin_8,
+				.GPIO_Pin   = GPIO_Pin_15,
 				.GPIO_Speed = GPIO_Speed_50MHz,
 				.GPIO_Mode  = GPIO_Mode_OUT,
 				.GPIO_OType = GPIO_OType_PP,
@@ -1016,7 +1016,7 @@ static const struct pios_usart_cfg pios_usart2_cfg = {
 	.regs = USART2,
 	.remap = GPIO_AF_7,
 	.init = {
-		.USART_BaudRate = 115200,
+		.USART_BaudRate = 9600,
 		.USART_WordLength = USART_WordLength_8b,
 		.USART_Parity = USART_Parity_No,
 		.USART_StopBits = USART_StopBits_1,
@@ -1038,7 +1038,8 @@ static const struct pios_usart_cfg pios_usart2_cfg = {
 			.GPIO_Speed = GPIO_Speed_2MHz,
 			.GPIO_Mode  = GPIO_Mode_AF,
 			.GPIO_OType = GPIO_OType_PP,
-			.GPIO_PuPd  = GPIO_PuPd_UP
+			//.GPIO_PuPd  = GPIO_PuPd_UP
+			.GPIO_PuPd  = GPIO_PuPd_NOPULL
 		},
 		.pin_source = GPIO_PinSource3,
 	},
@@ -1049,7 +1050,8 @@ static const struct pios_usart_cfg pios_usart2_cfg = {
 			.GPIO_Speed = GPIO_Speed_2MHz,
 			.GPIO_Mode  = GPIO_Mode_AF,
 			.GPIO_OType = GPIO_OType_PP,
-			.GPIO_PuPd  = GPIO_PuPd_UP
+			//.GPIO_PuPd  = GPIO_PuPd_UP
+			.GPIO_PuPd  = GPIO_PuPd_NOPULL
 		},
 		.pin_source = GPIO_PinSource2,
 	},

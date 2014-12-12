@@ -77,6 +77,8 @@ static int gps_status = 0;
 static int sending_timeout = 0;
 static int bt_sending_timeout = 0;
 static char imei[16];
+static char csq[32];
+static char btrssi[32];
 
 typedef enum {
 	AT_0,
@@ -92,6 +94,9 @@ static void GPRSTask(void *parameters)
 	imei[0] = 0;
 	imei[1] = 0;
 	imei[2] = 0;
+	csq[0]  = 0;
+	btrssi[0] = 0;
+
 	/* Handle usart -> vcp direction */
 	while (1) {
 		uint32_t rx_bytes;
@@ -107,6 +112,7 @@ static void GPRSTask(void *parameters)
 			received_bytes++;
 			received_n = 0;
 			line[line_index++] = c;
+			line[line_index] = 0;
 			if(c == '\n')
 			{
 				received_n = 1;
@@ -226,6 +232,14 @@ static void GPRSTask(void *parameters)
 				{
 					//network_state = NETWORK_ATTACHED;
 				}
+				else if(strstr(line,"CSQ"))
+				{
+					strcpy(csq,line);
+				}
+				else if(strstr(line,"BTRSSI"))
+				{
+					strcpy(btrssi,line);
+				}
 				else if(strstr(line,"ATE0"))
 				{
 					printf("ate0 ok");
@@ -257,8 +271,10 @@ static void GPRSTask(void *parameters)
 					line[15] = 0;
 					strcpy(imei,line);	
 				}
-			}else if(c == '>')
+			//}else if(c == '>')
+			}else if(strstr(line,"> "))
 			{
+				line[line_index-1] = '_';
 				if(network_state == NETWORK_SENDING || network_state == NETWORK_ID_SENDING)
 					SIM800_sendCmd(upload);
 				else if(bluetooth_state & BLUETOOTH_SPP_SENDING)
@@ -277,7 +293,10 @@ static void GPRSTask(void *parameters)
 			if(bluetooth_state & BLUETOOTH_SPP_SENDING)
 			{
 				if(xTaskGetTickCount() - bt_sending_timeout >= 10000)
+				{
 					bluetooth_state = 0;
+					stop_obdTask = 0;
+				}
 				continue;
 			}
 			if(bluetooth_state == BLUETOOTH_PAIRING)
@@ -311,7 +330,7 @@ static void GPRSTask(void *parameters)
 					if(strstr(spp_cmd,"SIMCOMSPPFORAPP"))
 					{
 						char cmd[32];
-						sprintf(spp_upload,">ELM327 - meeXing\r\n>");
+						sprintf(spp_upload,">ELM327 - meeXing%s\r\n>",get_cur_proto());
 						sprintf(cmd,"AT+BTSPPSEND=%d\r\n",strlen(spp_upload));
 						SIM800_sendCmd(cmd);
 						bluetooth_state = BLUETOOTH_SPP_SENDING;
@@ -319,7 +338,9 @@ static void GPRSTask(void *parameters)
 					else if(strstr(spp_cmd,"ATRV"))
 					{
 						char cmd[32];
-						sprintf(spp_upload,"12V\r\n>");
+						//SIM800_sendCmd("AT+BTRSSI=1\r\n");
+						//sprintf(spp_upload,"12V%s%s\r\n>",csq,btrssi);
+						sprintf(spp_upload,"12V%s\r\n>",csq);
 						sprintf(cmd,"AT+BTSPPSEND=%d\r\n",strlen(spp_upload));
 						SIM800_sendCmd(cmd);
 						bluetooth_state = BLUETOOTH_SPP_SENDING;
@@ -332,6 +353,16 @@ static void GPRSTask(void *parameters)
 						sprintf(cmd,"AT+BTSPPSEND=%d\r\n",strlen(spp_upload));
 						SIM800_sendCmd(cmd);
 						bluetooth_state = BLUETOOTH_SPP_SENDING;
+					}
+					else if(strstr(spp_cmd,"ATRSSI"))
+					{
+						char cmd[32];
+						SIM800_sendCmd("AT+BTRSSI=1\r\n");
+						sprintf(spp_upload,"%s%s\r\n>",csq,btrssi);
+						sprintf(cmd,"AT+BTSPPSEND=%d\r\n",strlen(spp_upload));
+						SIM800_sendCmd(cmd);
+						bluetooth_state = BLUETOOTH_SPP_SENDING;
+
 					}
 					else if(strstr(spp_cmd,"AT"))
 					{
@@ -346,7 +377,12 @@ static void GPRSTask(void *parameters)
 						char cmd[32];
 						res[0] = 0;
 						obd2(spp_cmd,strlen(spp_cmd),res);
-						sprintf(spp_upload,"%s\r\n>",res);
+						if(strstr(spp_cmd,"0100"))
+						{
+							SIM800_sendCmd("AT+BTRSSI=1\r\n");
+							sprintf(spp_upload,"%s%s\r\n>%s\r\n>",csq,btrssi,res);
+						}else
+							sprintf(spp_upload,"%s\r\n>",res);
 						sprintf(cmd,"AT+BTSPPSEND=%d\r\n",strlen(spp_upload));
 						SIM800_sendCmd(cmd);
 						bluetooth_state = BLUETOOTH_SPP_SENDING;
@@ -427,10 +463,11 @@ static void GPRSTask(void *parameters)
 							(int)obdData.engineRPM
 					       );
 					if(g_debug_level > 0)
-						printf("%s",upload);
+						printf("%d:%s",strlen(upload),upload);
 					int gpsSpeed = (int)gpsPosition.Groundspeed;
 					int vehicleSpeed = (int)(int)obdData.vehicleSpeed;
 					int update = (vehicleSpeed+gpsSpeed+obdData.engineRPM) > 0;
+					SIM800_sendCmd("AT+CSQ\r\n");	
 					if((update && (manual_upload == 0)) || (manual_upload == 2))//vehicleSpeed > (int)0)
 					{
 						char cmd[32];	
@@ -445,13 +482,17 @@ static void GPRSTask(void *parameters)
 			}
 			if(network_state == NETWORK_ERROR)
 			{
+				SIM800_sendCmd("AT+CIPACK\r\n");
+				PIOS_DELAY_WaitmS(1000);
+				SIM800_sendCmd("AT+CSQ\r\n");
+				PIOS_DELAY_WaitmS(1000);
 				SIM800_sendCmd("AT+CIPCLOSE\r\n");
 				PIOS_DELAY_WaitmS(1000);
 				SIM800_sendCmd("AT+CIPSHUT\r\n");
 				network_state = NETWORK_WAIT_SHUT;
 				sending_timeout = xTaskGetTickCount();
 			}
-			if(network_state == NETWORK_SENDING || network_state == NETWORK_WAIT_SHUT || network_state == NETWORK_CONNECTING)
+			if(network_state == NETWORK_SENDING || network_state == NETWORK_ID_SENDING || network_state == NETWORK_WAIT_SHUT || network_state == NETWORK_CONNECTING)
 			{
 				int tick = xTaskGetTickCount();
 				if(tick - sending_timeout > 10000)
@@ -462,8 +503,9 @@ static void GPRSTask(void *parameters)
 					else
 						network_state = NETWORK_ERROR;	
 				}
+				continue;
 			}
-
+			printf("gpsStatus: %d\n",gpsPosition.Status);
 			if(gpsPosition.Status > 1)
 			{
 				if(gps_status <= 1)
@@ -477,6 +519,30 @@ static void GPRSTask(void *parameters)
 				if(gps_status > 1)
 					SIM800_sendCmd("AT+CTTS=2,gps is not ok\r\n");
 				gps_status = gpsPosition.Status;	
+			}
+		}else{
+			if(bluetooth_state & BLUETOOTH_SPP_SENDING)
+			{
+				if(xTaskGetTickCount() - bt_sending_timeout >= 10000)
+				{
+					bluetooth_state = 0;
+					received_n = 1;
+					stop_obdTask = 0;
+				}
+			}
+	
+			if(network_state == NETWORK_SENDING || network_state == NETWORK_ID_SENDING || network_state == NETWORK_WAIT_SHUT || network_state == NETWORK_CONNECTING)
+			{
+				int tick = xTaskGetTickCount();
+				if(tick - sending_timeout > 10000)
+				{
+					sending_timeout = xTaskGetTickCount();
+					if(network_state == NETWORK_WAIT_SHUT)
+						network_state = NETWORK_ATTACHED;
+					else
+						network_state = NETWORK_ERROR;	
+					received_n = 1;
+				}
 			}
 		}
 	}

@@ -302,14 +302,14 @@ static void shell_help(int argc, char **argv)
 	}
 }
 static char *can_protos[] = {
-	"6 - ISO 15765-4 CAN (11 bit ID, 500 Kbaud)\r\n",	
-	"7 - ISO 15765-4 CAN (29 bit ID, 500 Kbaud)\r\n",	
-	"8 - ISO 15765-4 CAN (11 bit ID, 250 Kbaud)\r\n",	
-	"9 - ISO 15765-4 CAN (11 bit ID, 125 Kbaud)\r\n",	
-	"10 - ISO 15765-4 CAN (29 bit ID, 250 Kbaud)\r\n",	
-	"11 - SAE J1939 (29 bit ID, 250 Kbaud)\r\n",	
+	"(11 bit ID, 500 Kbaud)\r\n", //6	
+	"(29 bit ID, 500 Kbaud)\r\n", //7	
+	"(11 bit ID, 250 Kbaud)\r\n", //8	
+	"(11 bit ID, 125 Kbaud)\r\n", //9	
+	"(29 bit ID, 250 Kbaud)\r\n", //10	
+	"(SAE J1939, 250 Kbaud)\r\n",	//11	
 };
-static int can_cur_proto = 8;
+int can_cur_proto = 8;
 
 char *get_cur_proto()
 {
@@ -436,6 +436,21 @@ static void at(int argc, char **argv)
 	}else if(!strcmp(argv[1], "upload"))
 	{
 		manual_upload = hex2bin(argv[2],strlen(argv[2]));
+	}else if(!strcmp(argv[1], "gprs"))
+	{
+		int on = hex2bin(argv[2],strlen(argv[2]));
+		if(on)
+			PIOS_LED_On(7); //power on gprs
+		else
+			PIOS_LED_Off(7); //power on gprs
+			
+	}else if(!strcmp(argv[1],"gps"))
+	{
+		int on = hex2bin(argv[2],strlen(argv[2]));
+		if(on)
+			PIOS_LED_On(6); //power on gprs
+		else
+			PIOS_LED_Off(6); //power on gprs
 	}
 	else if(!strcmp(argv[1],"send"))
 	{

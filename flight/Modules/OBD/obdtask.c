@@ -71,19 +71,68 @@ int32_t obdInit()
  */
 int stop_obdTask = 0;
 extern int g_debug_level;
+extern int can_cur_proto;
 static void obdTask(void *parameters)
 {
+	//searching protos ...
+	int searching_protos[] = {6,8,9};
+	int searching_index = 0;
+	while(1)
+	{
+		int ret;
+		unsigned char cmd[8];
+		memset(cmd,0,sizeof(cmd));
+
+		can_cur_proto = searching_protos[searching_index];
+		if(g_debug_level > 0)
+			printf("searching proto %d\r\n",can_cur_proto);
+		if(can_cur_proto == 6 || can_cur_proto == 7)
+			can_set_baud(500);
+		else if(can_cur_proto == 9)
+			can_set_baud(125);
+		else if(can_cur_proto == 8 || can_cur_proto == 10 || can_cur_proto == 11)
+			can_set_baud(250);
+
+		cmd[0] = 2;
+		cmd[1] = 0x01;
+		cmd[2] = 0x00;
+		if(can_cur_proto == 6 || can_cur_proto == 8 || can_cur_proto == 9)
+			can_send_msg(cmd,0x7df,8);
+		else if(can_cur_proto == 7 || can_cur_proto == 11)
+			can_send_msg(cmd,0x18db33f1,8);
+		else if(can_cur_proto == 10)
+			can_send_msg(cmd,0x18eafff9,8);
+	
+		PIOS_DELAY_WaitmS(1000);
+		CanRxMsg RxMessage;
+		ret = can_receive_msgFIFO1(&RxMessage, 1000);
+		if(ret > 0)
+		{
+			printf("%x: ",(int)RxMessage.StdId);
+			for (int i = 0; i < 8; i++)
+				printf("%02x ", RxMessage.Data[i]);
+			printf("\r\n ");
+
+			printf("can ok - %d\r\n",can_cur_proto);
+			break;
+		}else
+		{
+			searching_index++;
+			if(searching_index >= (sizeof(searching_protos)/sizeof(int)))
+				searching_index = 0;
+		}	
+	}
 
 	// Main task loop
 	while (1) {
 		int ret;
-	
+
 		if(g_debug_level > 2)
 			printf("stop_obdTask=%d\r\n",stop_obdTask);
 		if(stop_obdTask == 1)
 		{
 			PIOS_DELAY_WaitmS(1000);
-//			stop_obdTask = 2;
+			//			stop_obdTask = 2;
 		}else
 		{
 			CanRxMsg RxMessage;
@@ -141,6 +190,7 @@ static void obdTask(void *parameters)
 				}
 			}else{
 				unsigned char cmd[8];
+				memset(cmd,0,sizeof(cmd));
 				cmd[0] = 2;
 				cmd[1] = 0x01;
 				cmd[2] = 0x0c;//Engine RPM

@@ -128,6 +128,7 @@ int32_t GPSInitialize(void)
 	uint8_t	gpsProtocol;
 
 	printf("GPSInitialize");
+	PIOS_LED_On(6); //power on gprs
 #ifdef MODULE_GPS_BUILTIN
 	module_enabled = true;
 #else
