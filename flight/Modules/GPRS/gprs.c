@@ -208,14 +208,36 @@ static void GPRSTask(void *parameters)
 				{
 					printf("connection closed");
 					network_state = NETWORK_ATTACHED; 
-				}else if(strstr(line,"SEND OK"))
+				}else if(strstr(line,"DATA ACCEPT"))
 				{
 					if(network_state == NETWORK_ID_SENDING)
 					{
 						network_state = NETWORK_ID_SENT;
 					}else if(network_state == NETWORK_SENDING)
 						network_state = NETWORK_SENT_OK;
-					else if(bluetooth_state & BLUETOOTH_SPP_SENDING)
+				}else if(NULL != (s = strstr(line,"+CIPACK")))//+CIPACK: 60647,60647,0
+				{
+					char *l = strsep(&s,",");
+					l = strsep(&s,",");
+					int ack = strtol(l, NULL, 10);
+					l = strsep(&s,"\r");
+					int nack = strtol(l, NULL, 10);
+					if(g_debug_level > 0)
+						printf("ack:%d, nack:%d\r\n",ack,nack);	
+					if(nack > 1000)
+						network_state = NETWORK_ERROR;	
+				}
+				else if(strstr(line,"SEND OK"))
+				{
+/*
+					if(network_state == NETWORK_ID_SENDING)
+					{
+						network_state = NETWORK_ID_SENT;
+					}else if(network_state == NETWORK_SENDING)
+						network_state = NETWORK_SENT_OK;
+					else 
+*/
+ 					if(bluetooth_state & BLUETOOTH_SPP_SENDING)
 					{
 						bluetooth_state  &= ~BLUETOOTH_SPP_SENDING;
 						bluetooth_state |= BLUETOOTH_SPP_SENT_OK;	
@@ -418,6 +440,8 @@ static void GPRSTask(void *parameters)
 			if(network_state == NETWORK_ATTACHED)
 			{
 				char cipstart[50];
+				SIM800_sendCmd("AT+CIPQSEND=1\r\n");//quick sending mode
+
 				sprintf(cipstart, "AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n", "42.121.193.134", 5005);
 				printf("connect to server");
 				SIM800_sendCmd(cipstart);
@@ -484,6 +508,7 @@ static void GPRSTask(void *parameters)
 					{
 						char cmd[32];	
 						int len = strlen(upload);
+						SIM800_sendCmd("AT+CIPACK\r\n");
 						snprintf(cmd,sizeof(cmd),"AT+CIPSEND=%d\r\n",len);
 						SIM800_sendCmd(cmd);
 						network_state = NETWORK_SENDING;

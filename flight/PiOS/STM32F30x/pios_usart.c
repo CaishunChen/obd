@@ -197,7 +197,7 @@ void PIOS_USART_printStatics(int n)
 	printf("error_parity: %d\r\n",(int)usart_dev->error_parity);	
 }
 #ifdef USART2_USE_DMA
-#define USART2_RX_SIZE 128 
+#define USART2_RX_SIZE 1024 
 #define USART2_TX_SIZE 64 
 static uint8_t *USART2_RECEIVE_DATA;
 static uint8_t *USART2_SEND_DATA;
@@ -616,6 +616,7 @@ void DMA1_Channel6_IRQHandler(void)//rx
 	DMA_Cmd(DMA1_Channel6, DISABLE);
 	DMA1_Channel6->CNDTR = USART2_RX_SIZE;
 	DMA_Cmd(DMA1_Channel6, ENABLE);
+	myprintchar('^');//fix me, need double buffer
 }
 
 void DMA1_Channel7_IRQHandler(void)//tx
