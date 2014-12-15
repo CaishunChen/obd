@@ -40,6 +40,8 @@
 
 #include <pios_usart_priv.h>
 
+#define USART2_USE_DMA
+
 /* Provide a COM driver */
 static void PIOS_USART_ChangeBaud(uint32_t usart_id, uint32_t baud);
 static void PIOS_USART_RegisterRxCallback(uint32_t usart_id, pios_com_callback rx_in_cb, uint32_t context);
@@ -69,6 +71,9 @@ struct pios_usart_dev {
 	uint32_t tx_out_context;
 
 	uint32_t error_overruns;
+	uint32_t error_noise;
+	uint32_t error_frame;
+	uint32_t error_parity;
 };
 
 static bool PIOS_USART_validate(struct pios_usart_dev * usart_dev)
@@ -88,6 +93,9 @@ static struct pios_usart_dev * PIOS_USART_alloc(void)
 	usart_dev->magic = PIOS_USART_DEV_MAGIC;
 
 	usart_dev->error_overruns = 0;
+	usart_dev->error_noise = 0;
+	usart_dev->error_frame = 0;
+	usart_dev->error_parity = 0;
 
 	return(usart_dev);
 }
@@ -118,7 +126,9 @@ static struct pios_usart_dev * PIOS_USART_alloc(void)
  * each physical IRQ to a specific registered device instance.
  */
 static void PIOS_USART_generic_irq_handler(uint32_t usart_id);
-
+#ifdef USART2_USE_DMA
+static void PIOS_USART_dma_irq_handler(uint32_t usart_id);
+#endif
 static uint32_t PIOS_USART_1_id;
 void USART1_EXTI25_IRQHandler(void) __attribute__ ((alias ("PIOS_USART_1_irq_handler")));
 static void PIOS_USART_1_irq_handler (void)
@@ -130,7 +140,11 @@ static uint32_t PIOS_USART_2_id;
 void USART2_EXTI26_IRQHandler(void) __attribute__ ((alias ("PIOS_USART_2_irq_handler")));
 static void PIOS_USART_2_irq_handler (void)
 {
+#ifdef USART2_USE_DMA
+	PIOS_USART_dma_irq_handler (PIOS_USART_2_id);
+#else
 	PIOS_USART_generic_irq_handler (PIOS_USART_2_id);
+#endif
 }
 
 static uint32_t PIOS_USART_3_id;
@@ -154,6 +168,105 @@ static void PIOS_UART_5_irq_handler (void)
 	PIOS_USART_generic_irq_handler (PIOS_UART_5_id);
 }
 
+void PIOS_USART_printStatics(int n)
+{
+	struct pios_usart_dev *usart_dev;	
+	switch (n) {
+	case 1:
+		usart_dev = (struct pios_usart_dev *)PIOS_USART_1_id;
+		break;
+	case 2:
+		usart_dev = (struct pios_usart_dev *)PIOS_USART_2_id;
+		break;
+	case 3:
+		usart_dev = (struct pios_usart_dev *)PIOS_USART_3_id;
+		break;
+	case 4:
+		usart_dev = (struct pios_usart_dev *)PIOS_UART_4_id;
+		break;
+	case 5:
+		usart_dev = (struct pios_usart_dev *)PIOS_UART_5_id;
+		break;
+	default:
+		usart_dev = (struct pios_usart_dev *)PIOS_USART_1_id;
+		break;
+	}
+	printf("error_overruns: %d\r\n",(int)usart_dev->error_overruns);
+	printf("error_noise: %d\r\n",(int)usart_dev->error_noise);
+	printf("error_frame: %d\r\n",(int)usart_dev->error_frame);
+	printf("error_parity: %d\r\n",(int)usart_dev->error_parity);	
+}
+#ifdef USART2_USE_DMA
+#define USART2_RX_SIZE 128 
+#define USART2_TX_SIZE 64 
+static uint8_t *USART2_RECEIVE_DATA;
+static uint8_t *USART2_SEND_DATA;
+static uint32_t USART2_TX_Finish=1;
+
+void myprintchar(char ch)
+{
+
+    while(USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET); // Wait for Empty  
+    USART_SendData(USART1, ch); // Send 'I'   
+}
+
+static void init_dma()
+{
+	DMA_InitTypeDef	DMA_InitStructure;
+	NVIC_InitTypeDef NVIC_InitStructure;
+	
+	USART2_RECEIVE_DATA = (uint8_t *)pvPortMalloc(USART2_RX_SIZE);
+	USART2_SEND_DATA = (uint8_t *)pvPortMalloc(USART2_TX_SIZE);
+
+	DMA_DeInit(DMA1_Channel6);
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART2->RDR;
+	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)USART2_RECEIVE_DATA;
+	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
+	DMA_InitStructure.DMA_BufferSize = USART2_RX_SIZE;
+	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+	DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+	DMA_InitStructure.DMA_Priority = DMA_Priority_Medium;
+	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
+	DMA_Init(DMA1_Channel6, &DMA_InitStructure);
+	DMA_ITConfig(DMA1_Channel6, DMA_IT_TC, ENABLE);
+	DMA_ITConfig(DMA1_Channel6, DMA_IT_TE, ENABLE); /* Enable USART2 DMA RX request */
+	USART_DMACmd(USART2, USART_DMAReq_Rx, ENABLE);
+	DMA_Cmd(DMA1_Channel6, ENABLE);
+	
+	DMA_DeInit(DMA1_Channel7);
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART2->TDR;
+	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)USART2_SEND_DATA;
+	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
+	DMA_InitStructure.DMA_BufferSize = USART2_TX_SIZE;
+	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+	DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
+	DMA_Init(DMA1_Channel7, &DMA_InitStructure);
+	DMA_ITConfig(DMA1_Channel7, DMA_IT_TC, ENABLE);
+	DMA_ITConfig(DMA1_Channel7, DMA_IT_TE, ENABLE);
+	USART_DMACmd(USART2, USART_DMAReq_Tx, ENABLE);
+	DMA_Cmd(DMA1_Channel7, DISABLE);
+
+	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel6_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+	
+	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel7_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+}
+#endif
 /**
 * Initialise a single USART device
 */
@@ -228,9 +341,22 @@ int32_t PIOS_USART_Init(uint32_t * usart_id, const struct pios_usart_cfg * cfg)
 		break;
 	}
 	NVIC_Init((NVIC_InitTypeDef *)&(usart_dev->cfg->irq.init));
+	
+#ifdef USART2_USE_DMA
+	if((uint32_t)usart_dev->cfg->regs == (uint32_t)USART2)
+	{	
+		init_dma();
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_IDLE,  ENABLE);
+	}else{
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_RXNE, ENABLE);
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_TXE,  ENABLE);
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_ERR,  ENABLE);
+	}
+#else
 	USART_ITConfig(usart_dev->cfg->regs, USART_IT_RXNE, ENABLE);
 	USART_ITConfig(usart_dev->cfg->regs, USART_IT_TXE,  ENABLE);
-
+	USART_ITConfig(usart_dev->cfg->regs, USART_IT_ERR,  ENABLE);
+#endif
 	// FIXME XXX Clear / reset uart here - sends NUL char else
 
 	/* Enable USART */
@@ -249,7 +375,14 @@ static void PIOS_USART_RxStart(uint32_t usart_id, uint16_t rx_bytes_avail)
 	bool valid = PIOS_USART_validate(usart_dev);
 	PIOS_Assert(valid);
 	
+#ifdef USART2_USE_DMA
+	if((uint32_t)usart_dev->cfg->regs == (uint32_t)USART2)
+	{
+	}else
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_RXNE, ENABLE);
+#else
 	USART_ITConfig(usart_dev->cfg->regs, USART_IT_RXNE, ENABLE);
+#endif
 }
 static void PIOS_USART_TxStart(uint32_t usart_id, uint16_t tx_bytes_avail)
 {
@@ -258,7 +391,36 @@ static void PIOS_USART_TxStart(uint32_t usart_id, uint16_t tx_bytes_avail)
 	bool valid = PIOS_USART_validate(usart_dev);
 	PIOS_Assert(valid);
 	
+#ifdef USART2_USE_DMA
+#if 0
+	if((uint32_t)usart_dev->cfg->regs == (uint32_t)USART2)
+	{
+		if (usart_dev->tx_out_cb) {
+			PIOS_IRQ_Disable();
+			if(USART2_TX_Finish)
+			{
+				uint16_t bytes_to_send;
+				bool tx_need_yield = false;
+				PIOS_IRQ_Enable();
+
+				bytes_to_send = (usart_dev->tx_out_cb)(usart_dev->tx_out_context, USART2_SEND_DATA, USART2_TX_SIZE, NULL, &tx_need_yield);
+				if(bytes_to_send > 0)
+				{
+					myprintchar('!');
+					USART2_TX_Finish = 0;
+					USART_ClearFlag(USART2, USART_FLAG_TC); 
+					DMA1_Channel7->CNDTR = bytes_to_send;
+					DMA_Cmd(DMA1_Channel7, ENABLE);
+				}
+			}else
+				PIOS_IRQ_Enable();
+		}		
+	}else
+#endif
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_TXE, ENABLE);
+#else
 	USART_ITConfig(usart_dev->cfg->regs, USART_IT_TXE, ENABLE);
+#endif
 }
 
 /**
@@ -366,11 +528,117 @@ static void PIOS_USART_generic_irq_handler(uint32_t usart_id)
 		USART_ClearITPendingBit(usart_dev->cfg->regs, USART_IT_ORE);
 		++usart_dev->error_overruns;
 	}
-	
+	if (USART_GetFlagStatus(usart_dev->cfg->regs, USART_FLAG_NE)) { //Noise Error
+		USART_ClearITPendingBit(usart_dev->cfg->regs, USART_IT_NE);
+		++usart_dev->error_noise;
+	}
+	if (USART_GetFlagStatus(usart_dev->cfg->regs, USART_FLAG_FE)) { //Noise Error
+		USART_ClearITPendingBit(usart_dev->cfg->regs, USART_IT_FE);
+		++usart_dev->error_frame;
+	}
+	if (USART_GetFlagStatus(usart_dev->cfg->regs, USART_FLAG_PE)) { //Noise Error
+		USART_ClearITPendingBit(usart_dev->cfg->regs, USART_IT_PE);
+		++usart_dev->error_parity;
+	}
+ 
 #if defined(PIOS_INCLUDE_FREERTOS)
 	portEND_SWITCHING_ISR(rx_need_yield || tx_need_yield);
 #endif	/* PIOS_INCLUDE_FREERTOS */
 }
+#ifdef USART2_USE_DMA
+static void PIOS_USART_dma_irq_handler(uint32_t usart_id)
+{
+	struct pios_usart_dev * usart_dev = (struct pios_usart_dev *)usart_id;
+
+	bool rx_need_yield = false;
+	bool tx_need_yield = false;
+
+	bool valid = PIOS_USART_validate(usart_dev);
+	PIOS_Assert(valid);
+
+	if(USART_GetITStatus(USART2, USART_IT_IDLE) != RESET)
+	{
+		uint32_t DATA_LEN;
+		DMA_Cmd(DMA1_Channel6, DISABLE);//关闭DMA,防止处理其间有数据
+		DATA_LEN=USART2_RX_SIZE-DMA_GetCurrDataCounter(DMA1_Channel6); 
+		if(DATA_LEN > 0)
+		{
+			//myprintchar('$');
+			if (usart_dev->rx_in_cb) {
+				(void) (usart_dev->rx_in_cb)(usart_dev->rx_in_context, USART2_RECEIVE_DATA, DATA_LEN, NULL, &rx_need_yield);
+			}
+		}
+		DMA_ClearFlag(DMA1_FLAG_GL6 | DMA1_FLAG_TC6 | DMA1_FLAG_TE6 | DMA1_FLAG_HT6);//清标志
+		DMA1_Channel6->CNDTR = USART2_RX_SIZE;//重装填
+		DMA_Cmd(DMA1_Channel6, ENABLE);//处理完,重开DMA
+
+	}
+	/* Check if TXE flag is set */
+	if (USART_GetITStatus(usart_dev->cfg->regs, USART_IT_TXE)) {
+		if (usart_dev->tx_out_cb) {
+			if(USART2_TX_Finish)
+			{
+				uint16_t bytes_to_send;
+				bytes_to_send = (usart_dev->tx_out_cb)(usart_dev->tx_out_context, USART2_SEND_DATA, USART2_TX_SIZE, NULL, &tx_need_yield);
+				if(bytes_to_send > 0)
+				{
+					if(bytes_to_send == 1)
+					{
+						uint8_t b = USART2_SEND_DATA[0];
+						USART_SendData(usart_dev->cfg->regs, b);
+						//myprintchar('!');
+					}else
+					{
+						//myprintchar('#');
+						USART2_TX_Finish = 0;
+						USART_ClearFlag(USART2, USART_FLAG_TC); 
+						DMA1_Channel7->CNDTR = bytes_to_send;
+						DMA_Cmd(DMA1_Channel7, ENABLE);
+					}
+				}
+			}
+		}
+		USART_ITConfig(usart_dev->cfg->regs, USART_IT_TXE, DISABLE);
+	}
+	
+	USART_ClearITPendingBit(USART2, USART_IT_TC);
+	USART_ClearITPendingBit(USART2, USART_IT_IDLE);
+ 
+#if defined(PIOS_INCLUDE_FREERTOS)
+	portEND_SWITCHING_ISR(rx_need_yield || tx_need_yield);
+#endif	/* PIOS_INCLUDE_FREERTOS */
+}
+
+void DMA1_Channel6_IRQHandler(void)//rx
+{
+	DMA_ClearITPendingBit(DMA1_IT_TC6);
+	DMA_ClearITPendingBit(DMA1_IT_TE6);
+	DMA_Cmd(DMA1_Channel6, DISABLE);
+	DMA1_Channel6->CNDTR = USART2_RX_SIZE;
+	DMA_Cmd(DMA1_Channel6, ENABLE);
+}
+
+void DMA1_Channel7_IRQHandler(void)//tx
+{
+	struct pios_usart_dev *usart_dev = (struct pios_usart_dev *)PIOS_USART_2_id;
+	DMA_ClearITPendingBit(DMA1_IT_TC7);
+	DMA_ClearITPendingBit(DMA1_IT_TE7);
+	DMA_Cmd(DMA1_Channel7, DISABLE);
+
+	if (usart_dev->tx_out_cb) {
+		uint16_t bytes_to_send;
+		bool tx_need_yield = false;
+		bytes_to_send = (usart_dev->tx_out_cb)(usart_dev->tx_out_context, USART2_SEND_DATA, USART2_TX_SIZE, NULL, &tx_need_yield);
+		if(bytes_to_send > 0)
+		{
+			//myprintchar('@');
+			DMA1_Channel7->CNDTR = bytes_to_send;
+			DMA_Cmd(DMA1_Channel7, ENABLE);
+		}else	
+			USART2_TX_Finish=1;
+	}	
+}
+#endif
 
 #endif
 

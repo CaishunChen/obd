@@ -52,6 +52,7 @@ extern int g_debug_level;
 extern char *get_cur_proto();
 extern int stop_obdTask;
 extern int obd2(char *str, int len, char *res);
+extern void PIOS_USART_printStatics(int n);
 
 int manual_upload = 0; //0 auto, 1 stop 2 start
 int upload_intervala = 1000;
@@ -64,11 +65,11 @@ static AccelsData accelsData;
 static MagnetometerData magData;
 static AttitudeActualData attitudeData;
 static OBDData obdData;
-static char upload[512];
+static char upload[256];
 static char spp_upload[64];
 static char spp_cmd[64];
 static xTaskHandle GPRSTaskHandle;
-static char line[1024];
+static char line[512];
 static int line_index = 0;
 static NETWORK_STATE network_state = NETWORK_ZERO;
 static BLUETOOTH_STATE bluetooth_state = BLUETOOTH_ZERO;
@@ -276,9 +277,12 @@ static void GPRSTask(void *parameters)
 			{
 				line[line_index-1] = '_';
 				if(network_state == NETWORK_SENDING || network_state == NETWORK_ID_SENDING)
+				{
 					SIM800_sendCmd(upload);
+				}
 				else if(bluetooth_state & BLUETOOTH_SPP_SENDING)
 				{
+					printf("send: %s\r\n",spp_upload);
 					SIM800_sendCmd(spp_upload);
 				}
 			}	
@@ -463,11 +467,19 @@ static void GPRSTask(void *parameters)
 							(int)obdData.engineRPM
 					       );
 					if(g_debug_level > 0)
+					{
 						printf("%d:%s",strlen(upload),upload);
+						if(g_debug_level > 1)
+						{
+							PIOS_USART_printStatics(1);
+							PIOS_USART_printStatics(2);
+							PIOS_USART_printStatics(3);
+						}
+						SIM800_sendCmd("AT+CSQ\r\n");	
+					}
 					int gpsSpeed = (int)gpsPosition.Groundspeed;
 					int vehicleSpeed = (int)(int)obdData.vehicleSpeed;
 					int update = (vehicleSpeed+gpsSpeed+obdData.engineRPM) > 0;
-					SIM800_sendCmd("AT+CSQ\r\n");	
 					if((update && (manual_upload == 0)) || (manual_upload == 2))//vehicleSpeed > (int)0)
 					{
 						char cmd[32];	
@@ -505,7 +517,8 @@ static void GPRSTask(void *parameters)
 				}
 				continue;
 			}
-			printf("gpsStatus: %d\n",gpsPosition.Status);
+			if(g_debug_level > 0)
+				printf("gpsStatus: %d\r\n",gpsPosition.Status);
 			if(gpsPosition.Status > 1)
 			{
 				if(gps_status <= 1)
@@ -515,7 +528,7 @@ static void GPRSTask(void *parameters)
 					SIM800_sendCmd(cmd);
 					gps_status = gpsPosition.Status;		
 				}
-			}else{
+			}else if(gpsPosition.Status == 1){
 				if(gps_status > 1)
 					SIM800_sendCmd("AT+CTTS=2,gps is not ok\r\n");
 				gps_status = gpsPosition.Status;	

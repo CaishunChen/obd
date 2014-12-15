@@ -344,6 +344,7 @@ static can_t can_filters = {
 			.n_filters = 1,
 		};
 
+extern void PIOS_USART_printStatics(int n);
 static void at(int argc, char **argv)
 {
 	if(argc <= 1)
@@ -429,16 +430,16 @@ static void at(int argc, char **argv)
 		DEBUG_MSG("show %x\r\n", show_can_id);
 	}else if(!strcmp(argv[1], "debug"))
 	{
-		g_debug_level = hex2bin(argv[2],strlen(argv[2]));
+		g_debug_level = atoi(argv[2]);
 	}else if(!strcmp(argv[1], "obd"))
 	{
-		stop_obdTask = hex2bin(argv[2],strlen(argv[2]));
+		stop_obdTask = atoi(argv[2]);
 	}else if(!strcmp(argv[1], "upload"))
 	{
-		manual_upload = hex2bin(argv[2],strlen(argv[2]));
+		manual_upload = atoi(argv[2]);
 	}else if(!strcmp(argv[1], "gprs"))
 	{
-		int on = hex2bin(argv[2],strlen(argv[2]));
+		int on = atoi(argv[2]);
 		if(on)
 			PIOS_LED_On(7); //power on gprs
 		else
@@ -446,11 +447,15 @@ static void at(int argc, char **argv)
 			
 	}else if(!strcmp(argv[1],"gps"))
 	{
-		int on = hex2bin(argv[2],strlen(argv[2]));
+		int on = atoi(argv[2]);
 		if(on)
 			PIOS_LED_On(6); //power on gprs
 		else
 			PIOS_LED_Off(6); //power on gprs
+	}else if(!strcmp(argv[1],"uart"))
+	{
+		int n = atoi(argv[2]);
+		PIOS_USART_printStatics(n);
 	}
 	else if(!strcmp(argv[1],"send"))
 	{

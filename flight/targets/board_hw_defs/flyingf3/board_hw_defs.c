@@ -982,7 +982,8 @@ static const struct pios_usart_cfg pios_usart1_cfg = {
 	.irq = {
 		.init = {
 			.NVIC_IRQChannel = USART1_IRQn,
-			.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_HIGHEST,
+			//.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_HIGHEST,
+			.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_MID,
 			.NVIC_IRQChannelSubPriority = 0,
 			.NVIC_IRQChannelCmd = ENABLE,
 		},
@@ -1016,7 +1017,7 @@ static const struct pios_usart_cfg pios_usart2_cfg = {
 	.regs = USART2,
 	.remap = GPIO_AF_7,
 	.init = {
-		.USART_BaudRate = 9600,
+		.USART_BaudRate = 115200,
 		.USART_WordLength = USART_WordLength_8b,
 		.USART_Parity = USART_Parity_No,
 		.USART_StopBits = USART_StopBits_1,
@@ -1038,8 +1039,8 @@ static const struct pios_usart_cfg pios_usart2_cfg = {
 			.GPIO_Speed = GPIO_Speed_2MHz,
 			.GPIO_Mode  = GPIO_Mode_AF,
 			.GPIO_OType = GPIO_OType_PP,
-			//.GPIO_PuPd  = GPIO_PuPd_UP
-			.GPIO_PuPd  = GPIO_PuPd_NOPULL
+			.GPIO_PuPd  = GPIO_PuPd_UP
+			//.GPIO_PuPd  = GPIO_PuPd_NOPULL
 		},
 		.pin_source = GPIO_PinSource3,
 	},
@@ -1050,8 +1051,8 @@ static const struct pios_usart_cfg pios_usart2_cfg = {
 			.GPIO_Speed = GPIO_Speed_2MHz,
 			.GPIO_Mode  = GPIO_Mode_AF,
 			.GPIO_OType = GPIO_OType_PP,
-			//.GPIO_PuPd  = GPIO_PuPd_UP
-			.GPIO_PuPd  = GPIO_PuPd_NOPULL
+			.GPIO_PuPd  = GPIO_PuPd_UP
+			//.GPIO_PuPd  = GPIO_PuPd_NOPULL
 		},
 		.pin_source = GPIO_PinSource2,
 	},
@@ -1071,7 +1072,8 @@ static const struct pios_usart_cfg pios_usart3_cfg = {
 	.irq = {
 		.init = {
 			.NVIC_IRQChannel = USART3_IRQn,
-			.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_HIGHEST,
+			//.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_HIGHEST,
+			.NVIC_IRQChannelPreemptionPriority = PIOS_IRQ_PRIO_MID,
 			.NVIC_IRQChannelSubPriority = 0,
 			.NVIC_IRQChannelCmd = ENABLE,
 		},

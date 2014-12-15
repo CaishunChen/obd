@@ -8,7 +8,7 @@
 //#define DEBUG_MSG(format, ...)
 //#endif
 
-#define STACK_SIZE 512
+#define STACK_SIZE 1024 
 #define TASK_PRIORITY (tskIDLE_PRIORITY+1)
 // Private types
 
@@ -21,7 +21,7 @@ static void obdTask(void *parameters);
 extern void shell_init(void);
 //static void cansendTask(void *parameters);
 
-static unsigned char auto_ids[0x6ff];
+//static unsigned char auto_ids[0x6ff];
 int32_t obdInit()
 {
 	//unsigned char canData[8];
@@ -49,7 +49,7 @@ int32_t obdInit()
 		.n_filters = 1,
 	};
 
-	memset(auto_ids,0,sizeof(auto_ids));
+//	memset(auto_ids,0,sizeof(auto_ids));
 	can_init();
 	can_set_filters(&can_filters);
 
@@ -145,10 +145,11 @@ static void obdTask(void *parameters)
 				{
 					if(show_can_id == 0)
 					{
-						auto_ids[RxMessage.StdId] = 1;
+						//auto_ids[RxMessage.StdId] = 1;
 						if(g_debug_level > 0)
 							DEBUG_MSG("%x: ",RxMessage.StdId);
 					}
+#if 0
 					if(show_can_id == 0x800)
 					{
 						if(auto_ids[RxMessage.StdId] == 0)
@@ -159,6 +160,7 @@ static void obdTask(void *parameters)
 							DEBUG_MSG("\r\n");
 						}
 					}	
+#endif
 					if(RxMessage.StdId == show_can_id)
 					{
 						DEBUG_MSG("%x: ",RxMessage.StdId);
