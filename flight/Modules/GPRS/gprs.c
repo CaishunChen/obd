@@ -80,6 +80,7 @@ static int bt_sending_timeout = 0;
 static char imei[16];
 static char csq[32];
 static char btrssi[32];
+static int g_nack = 0;
 
 typedef enum {
 	AT_0,
@@ -210,7 +211,12 @@ static void GPRSTask(void *parameters)
 					network_state = NETWORK_ATTACHED; 
 				}else if(strstr(line,"DATA ACCEPT"))
 				{
-					if(network_state == NETWORK_ID_SENDING)
+					if(g_nack > 1000)
+					{
+						network_state = NETWORK_ERROR;	
+						g_nack = 0;
+					}
+					else if(network_state == NETWORK_ID_SENDING)
 					{
 						network_state = NETWORK_ID_SENT;
 					}else if(network_state == NETWORK_SENDING)
@@ -221,11 +227,9 @@ static void GPRSTask(void *parameters)
 					l = strsep(&s,",");
 					int ack = strtol(l, NULL, 10);
 					l = strsep(&s,"\r");
-					int nack = strtol(l, NULL, 10);
+					g_nack = strtol(l, NULL, 10);
 					if(g_debug_level > 0)
-						printf("ack:%d, nack:%d\r\n",ack,nack);	
-					if(nack > 1000)
-						network_state = NETWORK_ERROR;	
+						printf("ack:%d, nack:%d\r\n",ack,g_nack);	
 				}
 				else if(strstr(line,"SEND OK"))
 				{
@@ -401,7 +405,7 @@ static void GPRSTask(void *parameters)
 						//OBD cmd
 						char res[32];
 						char cmd[32];
-						res[0] = 0;
+						memset(res,0,sizeof(res));
 						obd2(spp_cmd,strlen(spp_cmd),res);
 						if(strstr(spp_cmd,"0100"))
 						{
@@ -519,8 +523,8 @@ static void GPRSTask(void *parameters)
 			}
 			if(network_state == NETWORK_ERROR)
 			{
-				SIM800_sendCmd("AT+CIPACK\r\n");
-				PIOS_DELAY_WaitmS(1000);
+				//SIM800_sendCmd("AT+CIPACK\r\n");
+				//PIOS_DELAY_WaitmS(1000);
 				SIM800_sendCmd("AT+CSQ\r\n");
 				PIOS_DELAY_WaitmS(1000);
 				SIM800_sendCmd("AT+CIPCLOSE\r\n");

@@ -136,6 +136,7 @@ static void obdTask(void *parameters)
 		}else
 		{
 			CanRxMsg RxMessage;
+			memset(RxMessage.Data,0,8);
 			ret = can_receive_msgFIFO1(&RxMessage, 1000);
 			if(g_debug_level > 2)
 				printf("can_recv: %d\r\n",ret);

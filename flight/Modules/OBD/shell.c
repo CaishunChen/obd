@@ -535,6 +535,7 @@ int obd2(char *str, int len, char *res)
 		can_send_msg(cmd,0x18eafff9,8);
 
 reget:
+	memset(RxMessage.Data,0,8);
 	ret = can_receive_msgFIFO1(&RxMessage, 1000);
 	if(ret > 0)
 	{
@@ -555,7 +556,13 @@ reget:
 				}
 				if(RxMessage.Data[2] != cmd[2])
 					goto reget;
-				for(i=0; i<RxMessage.Data[0]; i++)
+				len = RxMessage.Data[0];
+				if(len > 7)
+				{
+					printf("obd len: %d\r\n",len);
+					len = 7;
+				}
+				for(i=0; i<len; i++)
 				{
 					sprintf(res,"%02X", RxMessage.Data[i+1]);
 					res += 2;
