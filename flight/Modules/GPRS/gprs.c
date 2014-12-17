@@ -246,7 +246,14 @@ static void GPRSTask(void *parameters)
 						bluetooth_state  &= ~BLUETOOTH_SPP_SENDING;
 						bluetooth_state |= BLUETOOTH_SPP_SENT_OK;	
 					}
-				}else if(strstr(line,"CLOSE OK"))
+				}else if(strstr(line,"SEND FAIL"))
+				{
+					if(network_state == NETWORK_ID_SENDING || network_state == NETWORK_SENDING)
+					{
+						network_state = NETWORK_ERROR;
+					}
+				}
+				else if(strstr(line,"CLOSE OK"))
 				{
 					//network_state = NETWORK_CLOSED;
 				}else if(strstr(line,"SHUT OK"))
